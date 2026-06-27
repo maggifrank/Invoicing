@@ -56,7 +56,9 @@ create policy "Users can insert own clients"
 create policy "Users can update own clients"
   on clients for update using (auth.uid() = user_id);
 
--- No delete policy — use archived flag
+-- No delete policy — use archived flag instead, except for unused clients
+create policy "Users can delete own clients"
+  on clients for delete using (auth.uid() = user_id);
 
 
 -- ── Invoices ─────────────────────────────────────────────────
@@ -101,8 +103,8 @@ create table invoices (
   sent_at           timestamptz,
   error_message     text,
 
-  -- One invoice per client per cycle (draft and real are separate)
-  constraint invoices_client_cycle_draft_unique unique (client_id, cycle_start, is_draft),
+  -- Drafts always insert (each is a point-in-time snapshot)
+  -- Real invoices are protected by application-level duplicate check
 
   created_at        timestamptz default now()
 );
@@ -158,7 +160,14 @@ create policy "Users can insert own invoice entries"
     where i.id = invoice_entries.invoice_id and i.user_id = auth.uid()
   ));
 
--- No delete policy
+create policy "Users can delete own draft invoice entries"
+  on invoice_entries for delete
+  using (exists (
+    select 1 from invoices i
+    where i.id = invoice_entries.invoice_id
+    and i.user_id = auth.uid()
+    and i.is_draft = true
+  ));
 
 
 -- ── Wire up foreign key from entries → invoices ──────────────

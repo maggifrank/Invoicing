@@ -54,6 +54,22 @@ function setupRoutes() {
 // ── Global actions (called from HTML onclick) ──────────────────
 window.openClientModal  = (id) => ClientsPage.openClientModal(id);
 window.saveClient       = ()   => ClientsPage.saveClient();
+
+window.deleteClient = async (id, name) => {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const { error } = await sb.from('clients').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) { showToast('Could not delete client', 'error'); return; }
+  showToast('Client deleted');
+  const container = document.getElementById('page-clients');
+  if (container) ClientsPage.mount(container, profile);
+};
+
+window.toggleArchivedClients = () => {
+  const container = document.getElementById('page-clients');
+  if (!container) return;
+  container.dataset.showArchived = container.dataset.showArchived === 'true' ? 'false' : 'true';
+  ClientsPage.mount(container, profile);
+};
 window.saveSettings     = ()   => SettingsPage.saveSettings(profile);
 window.updateCyclePreview = () => SettingsPage.updateCyclePreview();
 window.closeModal = (id) => document.getElementById(id)?.classList.remove('open');

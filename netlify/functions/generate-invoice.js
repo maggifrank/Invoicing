@@ -102,7 +102,8 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
     .order('date', { ascending: true })
     .order('time_from', { ascending: true });
 
-  if (!isDraft) query.is('invoice_id', null); // only uninvoiced entries for real invoices
+  // Only include uninvoiced entries — for both drafts and real invoices
+  query.is('invoice_id', null);
 
   const { data: entries } = await query;
   if (!entries?.length) throw new Error('No entries found for this cycle');

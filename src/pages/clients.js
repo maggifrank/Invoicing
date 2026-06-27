@@ -20,8 +20,25 @@ export async function mount(container, profile) {
 
   if (error) { container.innerHTML = '<div class="empty">Failed to load clients.</div>'; return; }
 
+  // Check which clients have entries or invoices
+  const { data: usedEntries } = await sb
+    .from('entries')
+    .select('client_id')
+    .eq('user_id', currentUser.id);
+
+  const { data: usedInvoices } = await sb
+    .from('invoices')
+    .select('client_id')
+    .eq('user_id', currentUser.id);
+
+  const usedClientIds = new Set([
+    ...(usedEntries ?? []).map(e => e.client_id),
+    ...(usedInvoices ?? []).map(i => i.client_id),
+  ]);
+
   const active   = (data ?? []).filter(c => !c.archived);
   const archived = (data ?? []).filter(c => c.archived);
+  const showArchived = container.dataset.showArchived === 'true';
 
   let html = `<button class="btn btn-primary" style="margin-bottom:1rem"
     onclick="window.openClientModal()">+ New client</button>`;
@@ -30,14 +47,23 @@ export async function mount(container, profile) {
     html += `<div class="empty"><div class="empty-icon">👥</div>No clients yet.</div>`;
   }
 
-  active.forEach(c => { html += clientCardHTML(c); });
+  active.forEach(c => { html += clientCardHTML(c, usedClientIds.has(c.id)); });
 
   if (archived.length) {
-    html += `<div class="section-label" style="margin-top:1.25rem;margin-bottom:0.75rem">Archived</div>`;
-    archived.forEach(c => { html += clientCardHTML(c); });
+    html += `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.25rem;margin-bottom:0.75rem">
+        <span class="section-label" style="margin:0">Archived</span>
+        <button class="btn-xs btn-xs-outline" onclick="window.toggleArchivedClients()">
+          ${showArchived ? 'Hide' : `Show (${archived.length})`}
+        </button>
+      </div>`;
+    if (showArchived) {
+      archived.forEach(c => { html += clientCardHTML(c, usedClientIds.has(c.id)); });
+    }
   }
 
   container.innerHTML = html;
+  container.dataset.showArchived = showArchived;
 }
 
 function isClientComplete(c) {
@@ -46,8 +72,9 @@ function isClientComplete(c) {
             (c.bank_account || _profile?.bank_account));
 }
 
-function clientCardHTML(c) {
+function clientCardHTML(c, isUsed) {
   const complete = isClientComplete(c);
+  const canDelete = !isUsed;
   return `
     <div class="client-card" onclick="window.openClientModal('${c.id}')">
       <div class="client-card-header">
@@ -59,6 +86,11 @@ function clientCardHTML(c) {
         <span>${escHtml(c.email === 'incomplete@placeholder.is' ? 'No email set' : c.email)}</span>
         ${!complete ? '<span class="badge badge-amber">incomplete</span>' : ''}
         ${c.archived ? '<span class="badge badge-red">archived</span>' : ''}
+        ${canDelete ? `
+          <button class="btn-xs btn-xs-outline" style="margin-left:auto;color:var(--red);border-color:rgba(224,92,92,0.3)"
+            onclick="event.stopPropagation();window.deleteClient('${c.id}', '${escHtml(c.name)}')">
+            Delete
+          </button>` : ''}
       </div>
     </div>
   `;

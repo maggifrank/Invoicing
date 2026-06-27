@@ -20,8 +20,8 @@ const ENV_CONFIG = {
     anonKey: 'sb_publishable_2kGd_k2FKQqPXVovHW4Kow_mHCaPvis',
   },
   prod: {
-    url:     'https://jymsciwhjkahbeurvgdk.supabase.co',
-    anonKey: 'sb_publishable_gtZrH7Pz5YOxqHq_fnKK4Q_OQNukt_f',
+    url:     'https://xmgbjchkjlclknkjjjkh.supabase.co',
+    anonKey: 'sb_publishable_IbiaMr5gsGUU8qtoeak5RQ_4fqZGFcV',
   },
 };
 

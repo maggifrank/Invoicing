@@ -14,29 +14,29 @@ export function mount(container, profile) {
       <div class="section-label">Your details (appear on every invoice)</div>
       <div class="field">
         <label class="label">Full name</label>
-        <input class="input" type="text" id="s-name" placeholder="Fullt nafn" value="${esc(p.issuer_name)}" />
+        <input class="input" type="text" id="s-name" placeholder="Magnús Franklín Þórunnarson" value="${esc(p.issuer_name)}" />
       </div>
       <div class="field input-row">
         <div>
           <label class="label">Kennitala</label>
-          <input class="input" type="text" id="s-kennitala" placeholder="Kennitala" value="${esc(p.issuer_kennitala)}" />
+          <input class="input" type="text" id="s-kennitala" placeholder="010792-2749" value="${esc(p.issuer_kennitala)}" />
         </div>
         <div>
           <label class="label">VSK númer</label>
-          <input class="input" type="text" id="s-vsk" placeholder="VSK númer" value="${esc(p.issuer_vsk)}" />
+          <input class="input" type="text" id="s-vsk" placeholder="(blank if not registered)" value="${esc(p.issuer_vsk)}" />
         </div>
       </div>
       <div class="field">
         <label class="label">Address</label>
-        <input class="input" type="text" id="s-address" placeholder="Heimilisfang" value="${esc(p.issuer_address)}" />
+        <input class="input" type="text" id="s-address" placeholder="Drekavöllum 18" value="${esc(p.issuer_address)}" />
       </div>
       <div class="field">
         <label class="label">City</label>
-        <input class="input" type="text" id="s-city" placeholder="Póstnúmer og bær" value="${esc(p.issuer_city)}" />
+        <input class="input" type="text" id="s-city" placeholder="221 - Hafnarfjörður" value="${esc(p.issuer_city)}" />
       </div>
       <div class="field">
         <label class="label">Email</label>
-        <input class="input" type="email" id="s-email" placeholder="nafn@len.is" value="${esc(p.issuer_email)}" />
+        <input class="input" type="email" id="s-email" placeholder="magnus@franklin.is" value="${esc(p.issuer_email)}" />
       </div>
     </div>
 
@@ -44,20 +44,20 @@ export function mount(container, profile) {
       <div class="section-label">Default bank details</div>
       <div class="field">
         <label class="label">Account number (kennitala)</label>
-        <input class="input" type="text" id="s-bank-account" placeholder="Kennitala" value="${esc(p.bank_account)}" />
+        <input class="input" type="text" id="s-bank-account" placeholder="0107922749" value="${esc(p.bank_account)}" />
       </div>
       <div class="field input-row-3">
         <div>
           <label class="label">Útibú</label>
-          <input class="input" type="text" id="s-utibú" placeholder="Útibú" value="${esc(p.bank_utibú)}" />
+          <input class="input" type="text" id="s-utibú" placeholder="0511" value="${esc(p.bank_utibú)}" />
         </div>
         <div>
           <label class="label">Hb</label>
-          <input class="input" type="text" id="s-hb" placeholder="Hb" value="${esc(p.bank_hb)}" />
+          <input class="input" type="text" id="s-hb" placeholder="14" value="${esc(p.bank_hb)}" />
         </div>
         <div>
           <label class="label">Reikn.nr.</label>
-          <input class="input" type="text" id="s-reikningur" placeholder="Reikningsnúmer" value="${esc(p.bank_reikningur)}" />
+          <input class="input" type="text" id="s-reikningur" placeholder="115147" value="${esc(p.bank_reikningur)}" />
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@ export function mount(container, profile) {
       <div class="field input-row">
         <div>
           <label class="label">Default hourly rate (ISK)</label>
-          <input class="input" type="number" id="s-rate" placeholder="Tímakaup" value="${esc(p.default_rate)}" />
+          <input class="input" type="number" id="s-rate" placeholder="4500" value="${esc(p.default_rate)}" />
         </div>
         <div>
           <label class="label">Default invoice prefix</label>
