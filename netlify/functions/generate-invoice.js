@@ -134,7 +134,8 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
   const pdfBuffer = await htmlToPDF(pdfHtml);
 
   // ── 8. Upload PDF ──
-  const pdfPath = `${userId}/${isDraft ? 'drafts' : 'invoices'}/${invoiceNumber}.pdf`;
+  const timestamp = isDraft ? `-${Date.now()}` : '';
+  const pdfPath = `${userId}/${isDraft ? 'drafts' : 'invoices'}/${invoiceNumber}${timestamp}.pdf`;
   const { error: uploadErr } = await sb.storage
     .from('invoices')
     .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
@@ -148,9 +149,11 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
 
   const signedUrl = signedData?.signedUrl;
 
-  // ── 10. Insert invoice row (skip for draft preview without send) ──
+  // ── 10. Insert invoice row ──
+  // Always insert for drafts (each generation is a frozen snapshot)
+  // Only insert for real invoices when sending
   let invoiceId = null;
-  if (sendEmail || !isDraft) {
+  if (isDraft || sendEmail) {
     const invoicePayload = {
       user_id:          userId,
       client_id:        clientId,
@@ -185,14 +188,32 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
       status:           'pending',
     };
 
-    const { data: inv, error: invErr } = await sb
-      .from('invoices')
-      .upsert(invoicePayload, {
-        onConflict: 'client_id,cycle_start,is_draft',
-        ignoreDuplicates: false,
-      })
-      .select()
-      .single();
+    let inv, invErr;
+    if (isDraft) {
+      // Drafts always insert — each generation is a new point-in-time snapshot
+      ({ data: inv, error: invErr } = await sb
+        .from('invoices')
+        .insert(invoicePayload)
+        .select()
+        .single());
+    } else {
+      // Real invoices — check for duplicate first, then insert
+      const { data: existing } = await sb
+        .from('invoices')
+        .select('id, status')
+        .eq('client_id', clientId)
+        .eq('cycle_start', cycleStart)
+        .eq('is_draft', false)
+        .maybeSingle();
+
+      if (existing) throw new Error(`Invoice already exists for this cycle (${existing.status})`);
+
+      ({ data: inv, error: invErr } = await sb
+        .from('invoices')
+        .insert(invoicePayload)
+        .select()
+        .single());
+    }
 
     if (invErr) throw new Error('Invoice insert failed: ' + invErr.message);
     invoiceId = inv.id;
@@ -251,6 +272,34 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
         await sb.from('entries')
           .update({ invoice_id: invoiceId, invoiced_at: new Date().toISOString() })
           .in('id', entries.map(e => e.id));
+
+        // Delete all drafts for this cycle now that the real invoice is sent
+        const { data: oldDrafts } = await sb
+          .from('invoices')
+          .select('id')
+          .eq('client_id', clientId)
+          .eq('cycle_start', cycleStart)
+          .eq('is_draft', true);
+
+        if (oldDrafts?.length) {
+          await sb.from('invoice_entries').delete().in('invoice_id', oldDrafts.map(d => d.id));
+          await sb.from('invoices').delete().in('id', oldDrafts.map(d => d.id));
+        }
+      }
+
+      // Clean up drafts older than 14 days
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 14);
+      const { data: oldDrafts14 } = await sb
+        .from('invoices')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_draft', true)
+        .lt('created_at', cutoff.toISOString());
+
+      if (oldDrafts14?.length) {
+        await sb.from('invoice_entries').delete().in('invoice_id', oldDrafts14.map(d => d.id));
+        await sb.from('invoices').delete().in('id', oldDrafts14.map(d => d.id));
       }
     }
   }
