@@ -1,0 +1,16 @@
+[build]
+  publish = "."
+
+[dev]
+  port         = 8889
+  functionsPort = 9999
+
+# Redirect all paths to index.html for client-side routing
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[functions]
+  directory    = "netlify/functions"
+  node_bundler = "esbuild"

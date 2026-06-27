@@ -1,0 +1,14 @@
+{
+  "name": "invoices",
+  "version": "1.0.0",
+  "description": "Invoice management app",
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^123.0.1",
+    "@supabase/supabase-js": "^2.39.7",
+    "puppeteer-core": "^22.6.0",
+    "resend": "^3.2.0"
+  }
+}
