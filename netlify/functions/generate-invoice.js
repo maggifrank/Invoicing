@@ -395,7 +395,7 @@ table.bank td { padding:4px 10px 4px 0; }
     <td>${esc(bankUtibú)}</td><td>${esc(bankHb)}</td><td>${esc(bankReikningur)}</td>
   </tr></tbody>
 </table>
-<div class="footer">Reikningur útgefinn af reikningakerfi FRANKLIN skv. reglugerð nr. 505/2013.</div>
+<div class="footer">Reikningur útgefinn af reikningakerfi Franklin skv. reglugerð nr. 505/2013.</div>
 </body></html>`;
 }
 
@@ -428,9 +428,9 @@ function getCurrentCycleDates(cycleStartDay = 21) {
     cycleEndDate   = new Date(y, m, cycleStartDay - 1);
   }
 
-  // Invoice dates: issued 25th, due last of month, final 1st of next
+  // Invoice dates: issued 25th, due same day, final 1st of next
   const issuedDate = new Date(y, m, 25);
-  const dueDate    = new Date(y, m + 1, 0); // last day of current month
+  const dueDate    = new Date(y, m, 25); // same as issued
   const finalDate  = new Date(y, m + 1, 1);
 
   return {
