@@ -1,6 +1,6 @@
 [build]
   publish = "."
-  
+
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
 
@@ -17,3 +17,4 @@
 [functions]
   directory    = "netlify/functions"
   node_bundler = "esbuild"
+  external_node_modules = ["@sparticuz/chromium"]
