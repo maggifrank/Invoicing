@@ -13,12 +13,11 @@
  *   SUPABASE_SERVICE_KEY
  *   RESEND_API_KEY
  *   INVOICE_FROM_EMAIL     e.g. invoices@franklin.is
+ *   PDFSHIFT_API_KEY       e.g. from pdfshift.io
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const puppeteer         = require('puppeteer-core');
-const chromium          = require('@sparticuz/chromium');
-const { Resend }        = require('resend');
+const { Resend }       = require('resend');
 
 const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -261,25 +260,27 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
 
 exports.generateInvoice = generateInvoice;
 
-// ── PDF generation ─────────────────────────────────────────────
+// ── PDF generation via PDFShift ────────────────────────────────
 async function htmlToPDF(html) {
-  const browser = await puppeteer.launch({
-    args:            chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath:  process.env.CHROME_EXECUTABLE_PATH ||
-                     await chromium.executablePath('/var/task/node_modules/@sparticuz/chromium/bin'),
-    headless:        chromium.headless,
+  const response = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + Buffer.from(`api:${process.env.PDFSHIFT_API_KEY}`).toString('base64'),
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({
+      source:  html,
+      format:  'A4',
+      margin:  { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
+    }),
   });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    return await page.pdf({
-      format: 'A4', printBackground: true,
-      margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
-    });
-  } finally {
-    await browser.close();
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`PDFShift error ${response.status}: ${err}`);
   }
+
+  return Buffer.from(await response.arrayBuffer());
 }
 
 // ── Invoice HTML ───────────────────────────────────────────────
