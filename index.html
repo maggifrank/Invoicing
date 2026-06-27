@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#0d0f18" />
-  <title>Time.log</title>
+  <title>Reikn.log</title>
   <link rel="stylesheet" href="/styles/main.css" />
 </head>
 <body>
@@ -16,9 +16,8 @@
 
 <!-- ── Auth screen ── -->
 <div id="auth-screen" style="display:none">
-  <div class="auth-wordmark">Time<em>.</em>log</div>
-  <p class="auth-tagline">Track your hours</p>
-
+  <div class="auth-wordmark">Reikn<em>.</em>log</div>
+  <p class="auth-tagline">Invoice management</p>
   <div class="auth-card">
     <div class="auth-tabs">
       <button class="auth-tab active" id="auth-login-tab">Sign in</button>
@@ -45,7 +44,7 @@
 
   <!-- Top bar -->
   <header class="topbar">
-    <div class="topbar-wordmark">Time<em>.</em>log</div>
+    <div class="topbar-wordmark">Reikn<em>.</em>log</div>
     <div class="topbar-right">
       <span class="env-badge" id="env-badge"></span>
       <span class="topbar-user" id="topbar-user"></span>
@@ -55,8 +54,9 @@
 
   <!-- Pages -->
   <main>
-    <div class="page active" id="page-log"></div>
-    <div class="page" id="page-history"></div>
+    <div class="page active" id="page-dashboard"></div>
+    <div class="page" id="page-clients"></div>
+    <div class="page" id="page-invoices"></div>
     <div class="page" id="page-settings"></div>
   </main>
 
@@ -64,17 +64,29 @@
   <nav class="bottom-nav">
     <button class="nav-item active" data-route="/">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
       </svg>
-      Log
+      Dashboard
     </button>
-    <button class="nav-item" data-route="/history">
+    <button class="nav-item" data-route="/clients">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path d="M12 8v4l3 3"/>
-        <path d="M3.05 11a9 9 0 1 1 .5 4M3 16v-5h5"/>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
-      History
+      Clients
+    </button>
+    <button class="nav-item" data-route="/invoices">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      Invoices
     </button>
     <button class="nav-item" data-route="/settings">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -86,61 +98,99 @@
   </nav>
 </div>
 
-<!-- Edit entry modal -->
-<div class="modal-overlay" id="edit-modal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Edit Entry</div>
-    <input type="hidden" id="edit-id" />
-    <div class="card">
-      <div class="field">
-        <label class="label" for="edit-client">Client</label>
-        <select class="input" id="edit-client"></select>
-      </div>
-      <div class="field">
-        <label class="label" for="edit-name">Description</label>
-        <input class="input" type="text" id="edit-name" autocomplete="off" />
-      </div>
-      <div class="field">
-        <label class="label" for="edit-date">Date</label>
-        <input class="input" type="date" id="edit-date" />
-      </div>
-      <div class="field">
-        <div class="input-row">
-          <div>
-            <label class="label">From</label>
-            <div class="time-select">
-              <select class="input time-select-h" id="edit-from-h"></select>
-              <span class="time-colon">:</span>
-              <select class="input time-select-m" id="edit-from-m"></select>
-            </div>
-          </div>
-          <div>
-            <label class="label">Until</label>
-            <div class="time-select">
-              <select class="input time-select-h" id="edit-until-h"></select>
-              <span class="time-colon">:</span>
-              <select class="input time-select-m" id="edit-until-m"></select>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="duration-display">
-        <span class="duration-label">Duration</span>
-        <span class="duration-value" id="edit-duration-value">—</span>
-      </div>
-      <div id="edit-midnight" style="height:1.1rem;margin-top:0.4rem;text-align:center"></div>
-    </div>
-    <button class="btn btn-primary" id="edit-save-btn">Save changes</button>
-    <button class="btn btn-ghost" id="edit-cancel-btn" style="margin-top:0.5rem">Cancel</button>
-  </div>
-</div>
-
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- App bundle (built by esbuild) -->
-<script type="module" src="/src/main.js"></script>
+<!-- Client modal -->
+<div class="modal-overlay" id="client-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="client-modal-title">New Client</div>
+    <input type="hidden" id="cm-id" />
+    <div class="card" style="margin-bottom:0.75rem">
+      <div class="section-label">Client details</div>
+      <div class="field">
+        <label class="label">Company / name</label>
+        <input class="input" type="text" id="cm-name" placeholder="GO öryggi ehf." />
+      </div>
+      <div class="field">
+        <label class="label">Address</label>
+        <input class="input" type="text" id="cm-address" placeholder="Háaleitisbraut 85" />
+      </div>
+      <div class="field">
+        <label class="label">City</label>
+        <input class="input" type="text" id="cm-city" placeholder="108-Reykjavík" />
+      </div>
+      <div class="field input-row">
+        <div>
+          <label class="label">Kennitala</label>
+          <input class="input" type="text" id="cm-kennitala" placeholder="5902190960" />
+        </div>
+        <div>
+          <label class="label">Invoice email</label>
+          <input class="input" type="email" id="cm-email" placeholder="laun@client.is" />
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:0.75rem">
+      <div class="section-label">Invoice config</div>
+      <div class="field input-row">
+        <div>
+          <label class="label">Prefix</label>
+          <input class="input" type="text" id="cm-prefix" placeholder="YRAB" />
+        </div>
+        <div>
+          <label class="label">Next number</label>
+          <input class="input" type="number" id="cm-counter" placeholder="1001" />
+        </div>
+      </div>
+      <div class="field">
+        <label class="label">Hourly rate (ISK)</label>
+        <input class="input" type="number" id="cm-rate" placeholder="4500" />
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:1rem">
+      <div class="section-label">Bank details override <span style="font-size:0.65rem;color:var(--text3);text-transform:none;letter-spacing:0">(leave blank to use your defaults)</span></div>
+      <div class="field">
+        <label class="label">Account number</label>
+        <input class="input" type="text" id="cm-bank-account" placeholder="Leave blank for default" />
+      </div>
+      <div class="field input-row-3">
+        <div>
+          <label class="label">Útibú</label>
+          <input class="input" type="text" id="cm-utibú" />
+        </div>
+        <div>
+          <label class="label">Hb</label>
+          <input class="input" type="text" id="cm-hb" />
+        </div>
+        <div>
+          <label class="label">Reikn.nr.</label>
+          <input class="input" type="text" id="cm-reikningur" />
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="cm-save-btn" onclick="window.saveClient()">Save client</button>
+    <button class="btn btn-danger" id="cm-archive-btn" style="display:none;margin-top:0.5rem">Archive client</button>
+    <button class="btn btn-ghost" onclick="closeModal('client-modal')" style="margin-top:0.5rem">Cancel</button>
+  </div>
+</div>
 
+<!-- PDF preview modal -->
+<div class="modal-overlay" id="pdf-modal">
+  <div class="modal" style="padding-bottom:1.5rem">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="pdf-modal-title">Invoice Preview</div>
+    <div class="pdf-preview-wrap">
+      <iframe id="pdf-frame" title="Invoice PDF"></iframe>
+    </div>
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn btn-primary" id="pdf-send-draft-btn" style="flex:1">Send draft to me</button>
+      <button class="btn btn-ghost" onclick="closeModal('pdf-modal')" style="flex:0 0 auto;width:auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>
