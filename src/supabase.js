@@ -28,7 +28,7 @@ const ENV_CONFIG = {
   prod: {
     url:          'https://xmgbjchkjlclknkjjjkh.supabase.co',
     anonKey:      'sb_publishable_IbiaMr5gsGUU8qtoeak5RQ_4fqZGFcV',
-    companionUrl: 'https://logger.franklin.is',
+    companionUrl: 'https://logger.talva.is',
   },
 };
 
