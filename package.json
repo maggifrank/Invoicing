@@ -1,0 +1,12 @@
+{
+  "name": "invoices",
+  "version": "1.0.0",
+  "description": "Invoice management app",
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.7",
+    "resend": "^3.2.0"
+  }
+}
