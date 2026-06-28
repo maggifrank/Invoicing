@@ -49,8 +49,9 @@ function showResetPasswordUI() {
   document.getElementById('app-screen').style.display  = 'none';
   document.getElementById('loading-overlay').style.display = 'none';
 
+  const wordmark = document.querySelector('.auth-wordmark')?.innerHTML ?? 'App';
   screen.innerHTML = `
-    <div class="auth-wordmark">Time<em>.</em>log</div>
+    <div class="auth-wordmark">${wordmark}</div>
     <p class="auth-tagline">Set new password</p>
     <div class="auth-card">
       <div class="field">
@@ -126,6 +127,25 @@ export function mountAuthUI() {
     ?.addEventListener('click', handleAuthSubmit);
   document.getElementById('auth-password')
     ?.addEventListener('keydown', e => { if (e.key === 'Enter') handleAuthSubmit(); });
+  document.getElementById('auth-forgot-btn')
+    ?.addEventListener('click', handleForgotPassword);
+}
+
+async function handleForgotPassword() {
+  const email = document.getElementById('auth-email')?.value.trim();
+  if (!email) { setAuthMessage('Enter your email address first.', 'error'); return; }
+
+  const btn = document.getElementById('auth-forgot-btn');
+  setLoading(btn, true, 'Sending…');
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/',
+  });
+
+  setLoading(btn, false, 'Forgot password?');
+
+  if (error) { setAuthMessage(error.message, 'error'); return; }
+  setAuthMessage('Password reset email sent — check your inbox.', 'success');
 }
 
 function switchAuthTab(mode) {

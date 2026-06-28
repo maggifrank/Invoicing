@@ -74,6 +74,12 @@ export function mount(container, profile) {
           <input class="input" type="text" id="s-prefix" placeholder="YRAB" value="${esc(p.invoice_prefix)}" />
         </div>
       </div>
+      <div class="field">
+        <label class="label">VSK rate (%)</label>
+        <div class="setting-desc" style="margin-bottom:0.5rem">Leave at 0 if not VSK registered. Set to 24 when registered with Skatturinn.</div>
+        <input class="input" type="number" id="s-vsk-rate" placeholder="0" min="0" max="100"
+          value="${esc(p.vsk_rate ?? 0)}" style="width:100px" />
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:0.75rem">
@@ -131,6 +137,7 @@ export async function saveSettings(profile) {
     bank_reikningur:  document.getElementById('s-reikningur').value.trim(),
     default_rate:     parseInt(document.getElementById('s-rate').value)    || null,
     invoice_prefix:   document.getElementById('s-prefix').value.trim()    || null,
+    vsk_rate:         parseFloat(document.getElementById('s-vsk-rate').value) || 0,
     cycle_start_day:  parseInt(document.getElementById('s-cycle-day').value),
     preview_email:    document.getElementById('s-preview-email').value.trim() || null,
     copy_to_self:     document.getElementById('s-copy-self').checked,

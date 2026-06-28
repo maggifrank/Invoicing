@@ -35,6 +35,7 @@ create table clients (
   invoice_prefix   text not null,
   invoice_counter  integer not null default 1000,
   hourly_rate      integer not null,
+  km_rate          integer,
   bank_account     text,
   bank_utibú       text,
   bank_hb          text,

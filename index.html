@@ -34,6 +34,7 @@
         placeholder="••••••••" autocomplete="current-password" />
     </div>
     <button class="btn btn-primary" id="auth-submit-btn">Sign in</button>
+    <button class="btn btn-ghost" id="auth-forgot-btn" style="margin-top:0.25rem;font-size:0.8rem">Forgot password?</button>
     <div id="auth-message" class="auth-error"></div>
   </div>
 </div>
@@ -146,6 +147,10 @@
       <div class="field">
         <label class="label">Hourly rate (ISK)</label>
         <input class="input" type="number" id="cm-rate" placeholder="4500" />
+      </div>
+      <div class="field">
+        <label class="label">KM rate (ISK per km) <span style="font-size:0.65rem;color:var(--text3);font-weight:400">leave blank to use your default</span></label>
+        <input class="input" type="number" id="cm-km-rate" placeholder="95" />
       </div>
     </div>
     <div class="card" style="margin-bottom:1rem">

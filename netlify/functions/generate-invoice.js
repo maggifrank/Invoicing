@@ -92,25 +92,40 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
   }
 
   // ── 4. Fetch entries ──
-  const query = sb
+  const entryQuery = sb
     .from('entries')
     .select('*')
     .eq('user_id', userId)
     .eq('client_id', clientId)
     .gte('date', cycleStart)
     .lte('date', cycleEnd)
+    .is('invoice_id', null)
     .order('date', { ascending: true })
     .order('time_from', { ascending: true });
 
-  // Only include uninvoiced entries — for both drafts and real invoices
-  query.is('invoice_id', null);
+  const kmQuery = sb
+    .from('km_entries')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('client_id', clientId)
+    .gte('date', cycleStart)
+    .lte('date', cycleEnd)
+    .is('invoice_id', null)
+    .order('date', { ascending: true });
 
-  const { data: entries } = await query;
-  if (!entries?.length) throw new Error('No entries found for this cycle');
+  const [{ data: entries }, { data: kmEntries }] = await Promise.all([entryQuery, kmQuery]);
+
+  if (!entries?.length && !kmEntries?.length) throw new Error('No entries found for this cycle');
+
+  const kmRate = client.km_rate || p.default_km_rate || 0;
 
   // ── 5. Calculate totals ──
-  const totalMinutes = entries.reduce((s, e) => s + e.minutes, 0);
-  const totalAmount  = Math.round((totalMinutes / 60) * client.hourly_rate);
+  const totalMinutes  = (entries ?? []).reduce((s, e) => s + e.minutes, 0);
+  const totalKm       = (kmEntries ?? []).reduce((s, e) => s + parseFloat(e.kilometres), 0);
+  const vskRate       = p.vsk_rate ?? 0;
+  const subtotal      = Math.round((totalMinutes / 60) * client.hourly_rate) + Math.round(totalKm * kmRate);
+  const vskAmount     = Math.round(subtotal * (vskRate / 100));
+  const totalAmount   = subtotal + vskAmount;
 
   // ── 6. Get invoice number ──
   let invoiceNumber;
@@ -126,8 +141,8 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
   // ── 7. Generate PDF ──
   const pdfHtml = buildInvoiceHTML({
     invoiceNumber, issuedDate, dueDate, finalDate,
-    issuer: p, client, entries,
-    totalMinutes, totalAmount,
+    issuer: p, client, entries: entries ?? [], kmEntries: kmEntries ?? [], kmRate,
+    totalMinutes, subtotal, vskRate, vskAmount, totalAmount,
     bankAccount, bankUtibú, bankHb, bankReikningur,
     isDraft,
   });
@@ -167,8 +182,8 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
       hourly_rate:      client.hourly_rate,
       total_minutes:    totalMinutes,
       total_amount:     totalAmount,
-      vsk_rate:         0,
-      vsk_amount:       0,
+      vsk_rate:         vskRate,
+      vsk_amount:       vskAmount,
       issuer_name:      p.issuer_name,
       issuer_kennitala: p.issuer_kennitala,
       issuer_address:   p.issuer_address,
@@ -220,7 +235,7 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
     invoiceId = inv.id;
 
     // Insert entry snapshots
-    const snapshots = entries.map((e, i) => ({
+    const snapshots = (entries ?? []).map((e, i) => ({
       invoice_id:       invoiceId,
       entry_id:         e.id,
       name:             e.name,
@@ -233,11 +248,10 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
       line_amount:      Math.round((e.minutes / 60) * client.hourly_rate),
     }));
 
-    // Delete existing snapshots if re-generating draft
     if (isDraft) {
       await sb.from('invoice_entries').delete().eq('invoice_id', invoiceId);
     }
-    await sb.from('invoice_entries').insert(snapshots);
+    if (snapshots.length) await sb.from('invoice_entries').insert(snapshots);
   }
 
   // ── 11. Send email ──
@@ -272,7 +286,13 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
       if (!isDraft) {
         await sb.from('entries')
           .update({ invoice_id: invoiceId, invoiced_at: new Date().toISOString() })
-          .in('id', entries.map(e => e.id));
+          .in('id', (entries ?? []).map(e => e.id));
+
+        if (kmEntries?.length) {
+          await sb.from('km_entries')
+            .update({ invoice_id: invoiceId, invoiced_at: new Date().toISOString() })
+            .in('id', kmEntries.map(e => e.id));
+        }
 
         // Delete all drafts for this cycle now that the real invoice is sent
         const { data: oldDrafts } = await sb
@@ -335,23 +355,50 @@ async function htmlToPDF(html) {
 
 // ── Invoice HTML ───────────────────────────────────────────────
 function buildInvoiceHTML({ invoiceNumber, issuedDate, dueDate, finalDate,
-  issuer, client, entries, totalMinutes, totalAmount,
+  issuer, client, entries, kmEntries, kmRate,
+  totalMinutes, subtotal, vskRate, vskAmount, totalAmount,
   bankAccount, bankUtibú, bankHb, bankReikningur, isDraft }) {
 
-  const vskLabel  = issuer.issuer_vsk ? `vsknr: ${esc(issuer.issuer_vsk)}` : 'vsknr:';
-  const lineItems = entries.map((e, i) => {
-    const hrs    = e.minutes / 60;
-    const amount = Math.round(hrs * client.hourly_rate);
+  const vskLabel   = issuer.issuer_vsk ? `vsknr: ${esc(issuer.issuer_vsk)}` : 'vsknr:';
+  const vskPct     = `${vskRate}%`;
+  const vskCode    = vskRate === 0 ? 'Z(0%)' : `S(${vskRate}%)`;
+
+  let lineNum = 0;
+  const timeLines = entries.map(e => {
+    lineNum++;
+    const hrs       = e.minutes / 60;
+    const lineNet   = Math.round(hrs * client.hourly_rate);
+    const lineVsk   = Math.round(lineNet * (vskRate / 100));
+    const lineTotal = lineNet + lineVsk;
     return `<tr>
-      <td>${i + 1}. 2</td>
+      <td>${lineNum}. 2</td>
       <td>${esc(e.name)} ${fmtTime(e.time_from)} - ${fmtTime(e.time_until)} ${fmtDec(hrs)} klst</td>
       <td>${fmtDec(hrs)} klst</td>
       <td>${fmtISK(client.hourly_rate)}</td>
-      <td>0%</td>
-      <td>${fmtISK(amount)}</td>
-      <td>${fmtISK(amount)}</td>
+      <td>${vskPct}</td>
+      <td>${fmtISK(lineNet)}</td>
+      <td>${fmtISK(lineTotal)}</td>
     </tr>`;
-  }).join('');
+  });
+
+  const kmLines = kmEntries.map(e => {
+    lineNum++;
+    const km        = parseFloat(e.kilometres);
+    const lineNet   = Math.round(km * kmRate);
+    const lineVsk   = Math.round(lineNet * (vskRate / 100));
+    const lineTotal = lineNet + lineVsk;
+    return `<tr>
+      <td>${lineNum}. 3</td>
+      <td>${esc(e.from_location)} → ${esc(e.to_location)}${e.is_round_trip ? ' (báðar leiðir)' : ''} ${fmtDec(km)} km</td>
+      <td>${fmtDec(km)} km</td>
+      <td>${fmtISK(kmRate)}</td>
+      <td>${vskPct}</td>
+      <td>${fmtISK(lineNet)}</td>
+      <td>${fmtISK(lineTotal)}</td>
+    </tr>`;
+  });
+
+  const lineItems = [...timeLines, ...kmLines].join('');
 
   return `<!DOCTYPE html>
 <html lang="is"><head><meta charset="UTF-8"/>
@@ -427,10 +474,10 @@ table.bank td { padding:4px 10px 4px 0; }
 <table class="tax">
   <tr><td><strong>Skattaupplýsingar:</strong></td><td><strong>Upphæð:</strong></td><td><strong>Skattur:</strong></td><td></td><td></td></tr>
   <tr>
-    <td>Z(0%)</td><td>${fmtISK(totalAmount)}</td><td>0</td>
-    <td style="padding-left:2rem">Samtals:</td><td style="text-align:right">${fmtISKDec(totalAmount)}</td>
+    <td>${vskCode}</td><td>${fmtISK(subtotal)}</td><td>${fmtISK(vskAmount)}</td>
+    <td style="padding-left:2rem">Samtals:</td><td style="text-align:right">${fmtISKDec(subtotal)}</td>
   </tr>
-  <tr><td colspan="3"></td><td style="padding-left:2rem">Samtals vsk.:</td><td style="text-align:right">0,00</td></tr>
+  <tr><td colspan="3"></td><td style="padding-left:2rem">Samtals vsk.:</td><td style="text-align:right">${fmtISKDec(vskAmount)}</td></tr>
   <tr class="total-row">
     <td colspan="3"></td>
     <td style="padding-left:2rem">Heildarupphæð:</td>

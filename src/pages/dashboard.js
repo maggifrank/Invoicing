@@ -52,11 +52,24 @@ export async function mount(container, profile) {
     .lte('date', cycleEndISO)
     .is('invoice_id', null);
 
-  // Build per-client minute totals
+  const { data: kmEntries } = await sb
+    .from('km_entries')
+    .select('client_id, kilometres')
+    .eq('user_id', currentUser.id)
+    .gte('date', cycleStartISO)
+    .lte('date', cycleEndISO)
+    .is('invoice_id', null);
+
+  // Build per-client minute and km totals
   const minutesByClient = {};
+  const kmByClient      = {};
   (entries ?? []).forEach(e => {
     if (!e.client_id) return;
     minutesByClient[e.client_id] = (minutesByClient[e.client_id] ?? 0) + e.minutes;
+  });
+  (kmEntries ?? []).forEach(e => {
+    if (!e.client_id) return;
+    kmByClient[e.client_id] = (kmByClient[e.client_id] ?? 0) + parseFloat(e.kilometres);
   });
 
   // Countdown days
@@ -86,9 +99,11 @@ export async function mount(container, profile) {
 
   clients.forEach(client => {
     const mins      = minutesByClient[client.id] ?? 0;
+    const km        = kmByClient[client.id] ?? 0;
     const hours     = mins / 60;
-    const amount    = Math.round(hours * client.hourly_rate);
-    const hasWork   = mins > 0;
+    const kmRate    = client.km_rate || profile?.default_km_rate || 0;
+    const amount    = Math.round(hours * client.hourly_rate) + Math.round(km * kmRate);
+    const hasWork   = mins > 0 || km > 0;
     const complete  = !!(client.email && client.email !== 'incomplete@placeholder.is' &&
                          client.hourly_rate > 0 &&
                          (client.bank_account || profile?.bank_account));
@@ -104,9 +119,8 @@ export async function mount(container, profile) {
         </div>
         <div class="client-cycle-meta">
           ${hasWork
-            ? `<span>${formatDuration(mins)}</span>
-               <span>·</span>
-               <span>${client.hourly_rate > 0 ? fmtISKRate(client.hourly_rate) + '/klst' : 'No rate set'}</span>`
+            ? `${mins > 0 ? `<span>${formatDuration(mins)}</span><span>·</span><span>${client.hourly_rate > 0 ? fmtISKRate(client.hourly_rate) + '/klst' : 'No rate set'}</span>` : ''}
+               ${km > 0 ? `${mins > 0 ? '<span>·</span>' : ''}<span>${km.toLocaleString('is-IS', { maximumFractionDigits: 1 })} km</span><span>·</span><span>${fmtISKRate(kmRate)}/km</span>` : ''}`
             : `<span style="color:var(--text3)">No entries this cycle</span>`
           }
         </div>
