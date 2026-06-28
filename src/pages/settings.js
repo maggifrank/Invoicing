@@ -116,6 +116,20 @@ export function mount(container, profile) {
     </div>
 
     <button class="btn btn-primary" id="s-save-btn" onclick="saveSettings()">Save settings</button>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="section-label">Invite user</div>
+      <div class="setting-desc" style="margin-bottom:0.75rem">
+        Send an invite email to a new user. They'll receive a link to set their password.
+      </div>
+      <div style="display:flex;gap:0.5rem">
+        <input class="input" type="email" id="s-invite-email" placeholder="user@example.com" style="flex:1" />
+        <button class="btn btn-primary" id="s-invite-btn" onclick="sendInvite()"
+          style="width:auto;padding:0.7rem 1rem;font-size:0.85rem;white-space:nowrap">
+          Send invite
+        </button>
+      </div>
+    </div>
   `;
 }
 

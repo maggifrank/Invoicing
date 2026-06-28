@@ -9,33 +9,41 @@ export let currentUser = null;
 
 // Called once on app start. Resolves when auth state is known.
 export async function initAuth(onSignedIn, onSignedOut) {
-  // Check if this is a password reset redirect (Supabase puts #access_token in the URL)
+  // Check if this is a password reset or invite redirect
   const hash   = window.location.hash;
   const params = new URLSearchParams(hash.replace('#', '?'));
   const type   = params.get('type');
 
-  if (type === 'recovery') {
-    // Supabase has already set a session from the token in the URL
-    // Exchange it and show the reset form
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) {
-      currentUser = session.user;
-      showResetPasswordUI();
-      return;
-    }
-  }
-
-  const { data: { session } } = await sb.auth.getSession();
-  currentUser = session?.user ?? null;
-
+  // Handle via auth state change so we catch both hash and PKCE flows
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user ?? null;
+
+    // Show password form for recovery and invite events
+    if (_event === 'PASSWORD_RECOVERY' || _event === 'USER_UPDATED' && type === 'recovery') {
+      showResetPasswordUI('Set new password');
+      return;
+    }
+
+    if (_event === 'SIGNED_IN' && (type === 'invite' || type === 'recovery')) {
+      // First sign-in from invite or recovery link — show password form
+      showResetPasswordUI(type === 'invite' ? 'Set your password' : 'Set new password');
+      // Clear the hash so refreshing doesn't re-trigger
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+
     if (currentUser) onSignedIn(currentUser);
     else onSignedOut();
   });
 
-  if (currentUser) onSignedIn(currentUser);
-  else onSignedOut();
+  const { data: { session } } = await sb.auth.getSession();
+  currentUser = session?.user ?? null;
+
+  // If no auth state change fired yet and no token in URL, resolve immediately
+  if (!type) {
+    if (currentUser) onSignedIn(currentUser);
+    else onSignedOut();
+  }
 }
 
 export async function signOut() {
@@ -43,7 +51,7 @@ export async function signOut() {
 }
 
 // ── Password reset UI ──────────────────────────────────────────
-function showResetPasswordUI() {
+function showResetPasswordUI(title = 'Set new password') {
   const screen = document.getElementById('auth-screen');
   screen.style.display = 'flex';
   document.getElementById('app-screen').style.display  = 'none';
@@ -52,7 +60,7 @@ function showResetPasswordUI() {
   const wordmark = document.querySelector('.auth-wordmark')?.innerHTML ?? 'App';
   screen.innerHTML = `
     <div class="auth-wordmark">${wordmark}</div>
-    <p class="auth-tagline">Set new password</p>
+    <p class="auth-tagline">${title}</p>
     <div class="auth-card">
       <div class="field">
         <label class="label" for="reset-password">New password</label>
