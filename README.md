@@ -81,7 +81,7 @@ owns: profiles,                  (shared DB)                  owns: clients, inv
 
 ## Security
 
-- `SUPABASE_SERVICE_KEY` lives only in Netlify environment variables — never in client-side code
+- The service role key lives only in Netlify environment variables — never in client-side code
 - The anon key in `src/supabase.js` is safe for browser use — RLS enforces per-user isolation
 - All user data is HTML-escaped before entering the PDF template
 - PDFs stored in a private Supabase Storage bucket, served via signed URLs (10 min)
@@ -132,7 +132,7 @@ Set these in the Netlify dashboard per deploy context (test/prod):
 
 ```
 SUPABASE_URL           — Supabase project URL
-SUPABASE_SERVICE_KEY   — service role key (secret, server-side only)
+SUPABASE_SERVICE   — service role key (secret, server-side only)
 RESEND_API_KEY         — Resend API key
 INVOICE_FROM_EMAIL     — e.g. invoices@franklin.is
 PDFSHIFT_API_KEY       — PDFShift API key (pdfshift.io)
