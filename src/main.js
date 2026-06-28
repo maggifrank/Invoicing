@@ -1,9 +1,10 @@
 // src/main.js
 
-import { sb, ENV } from './supabase.js';
+import { sb, ENV, COMPANION_URL } from './supabase.js';
 import { initAuth, signOut, mountAuthUI, currentUser } from './auth.js';
 import { register, start, navigate } from './router.js';
 import { showToast } from './components/toast.js';
+import { setLoading } from './components/spinner.js';
 
 import * as DashboardPage from './pages/dashboard.js';
 import * as ClientsPage   from './pages/clients.js';
@@ -72,6 +73,28 @@ window.toggleArchivedClients = () => {
 };
 window.saveSettings     = ()   => SettingsPage.saveSettings(profile);
 window.updateCyclePreview = () => SettingsPage.updateCyclePreview();
+
+window.sendInvite = async () => {
+  const email = document.getElementById('s-invite-email')?.value.trim();
+  if (!email) { showToast('Enter an email address', 'error'); return; }
+  const btn = document.getElementById('s-invite-btn');
+  setLoading(btn, true, 'Sending…');
+  try {
+    const res  = await fetch('/.netlify/functions/invite-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Unknown error');
+    showToast(`Invite sent to ${email}`);
+    document.getElementById('s-invite-email').value = '';
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    setLoading(btn, false, 'Send invite');
+  }
+};
 window.closeModal = (id) => document.getElementById(id)?.classList.remove('open');
 
 window.viewInvoicePDF = (invoiceId, pdfPath, invoiceNumber) =>
@@ -149,6 +172,8 @@ async function onSignedIn(user) {
   document.getElementById('loading-overlay').style.display = 'none';
 
   document.getElementById('topbar-user').textContent = user.email;
+  const companion = document.getElementById('nav-companion');
+  if (companion) companion.href = COMPANION_URL;
   const badge = document.getElementById('env-badge');
   if (ENV === 'dev') { badge.textContent = 'dev'; badge.className = 'env-badge dev'; }
   else badge.className = 'env-badge';

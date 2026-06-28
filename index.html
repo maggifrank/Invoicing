@@ -6,8 +6,7 @@
   <meta name="theme-color" content="#0d0f18" />
   <title>Reikn.log</title>
   <link rel="stylesheet" href="/styles/main.css" />
-      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 </head>
 <body>
 
@@ -28,7 +27,7 @@
     <div class="field">
       <label class="label" for="auth-email">Email</label>
       <input class="input" type="email" id="auth-email"
-        placeholder="you@example.com" autocomplete="email" />
+        placeholder="nafn@len.is" autocomplete="email" />
     </div>
     <div class="field">
       <label class="label" for="auth-password">Password</label>
@@ -97,6 +96,13 @@
       </svg>
       Settings
     </button>
+    <a class="nav-item" id="nav-companion" href="#" target="_blank" rel="noopener">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+      Logger
+    </a>
   </nav>
 </div>
 
@@ -113,20 +119,20 @@
       <div class="section-label">Client details</div>
       <div class="field">
         <label class="label">Company / name</label>
-        <input class="input" type="text" id="cm-name" placeholder="GO öryggi ehf." />
+        <input class="input" type="text" id="cm-name" placeholder="Nafn fyrirtækis" />
       </div>
       <div class="field">
         <label class="label">Address</label>
-        <input class="input" type="text" id="cm-address" placeholder="Háaleitisbraut 85" />
+        <input class="input" type="text" id="cm-address" placeholder="Heimilisfang" />
       </div>
       <div class="field">
         <label class="label">City</label>
-        <input class="input" type="text" id="cm-city" placeholder="108-Reykjavík" />
+        <input class="input" type="text" id="cm-city" placeholder="Póstnúmer og staður" />
       </div>
       <div class="field input-row">
         <div>
           <label class="label">Kennitala</label>
-          <input class="input" type="text" id="cm-kennitala" placeholder="5902190960" />
+          <input class="input" type="text" id="cm-kennitala" placeholder="Kennitala" />
         </div>
         <div>
           <label class="label">Invoice email</label>
@@ -148,7 +154,7 @@
       </div>
       <div class="field">
         <label class="label">Hourly rate (ISK)</label>
-        <input class="input" type="number" id="cm-rate" placeholder="4500" />
+        <input class="input" type="number" id="cm-rate" placeholder="Tímagjald" />
       </div>
       <div class="field">
         <label class="label">KM rate (ISK per km) <span style="font-size:0.65rem;color:var(--text3);font-weight:400">leave blank to use your default</span></label>

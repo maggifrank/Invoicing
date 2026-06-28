@@ -492,7 +492,7 @@ table.bank td { padding:4px 10px 4px 0; }
     <td>${esc(bankUtibú)}</td><td>${esc(bankHb)}</td><td>${esc(bankReikningur)}</td>
   </tr></tbody>
 </table>
-<div class="footer">Reikningur útgefinn af reikningakerfi Franklin skv. reglugerð nr. 505/2013.</div>
+<div class="footer">Reikningur útgefinn af reikningakerfinu Talva skv. reglugerð nr. 505/2013.</div>
 </body></html>`;
 }
 
