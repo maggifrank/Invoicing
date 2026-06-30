@@ -22,7 +22,18 @@ export async function mount(container) {
 
   let html = '';
   data.forEach(inv => {
-    const statusClass = { sent: 'badge-green', pending: 'badge-amber', failed: 'badge-red' }[inv.status] ?? 'badge-neutral';
+    const isPaid      = !!inv.paid_at;
+    const isCredit    = inv.is_credit;
+    const isCancelled = inv.status === 'cancelled';
+    const statusClass = isCredit ? 'badge-red'
+      : isCancelled ? 'badge-neutral'
+      : isPaid ? 'badge-green'
+      : { sent: 'badge-amber', pending: 'badge-amber', failed: 'badge-red' }[inv.status] ?? 'badge-neutral';
+    const statusLabel = isCredit ? 'credit' : isCancelled ? 'cancelled' : isPaid ? 'paid' : inv.status === 'sent' ? 'unpaid' : inv.status;
+
+    // Find if a credit already exists for this invoice
+    const hasCredit = !inv.is_credit && data.some(d => d.credit_for_invoice_id === inv.id);
+
     html += `
       <div class="invoice-card">
         <div class="invoice-card-header">
@@ -30,6 +41,7 @@ export async function mount(container) {
             <div class="invoice-number">
               ${escHtml(inv.invoice_number)}
               ${inv.is_draft ? '<span class="badge badge-amber">draft</span>' : ''}
+              ${isCredit ? '<span class="badge badge-red">kredit</span>' : ''}
             </div>
             <div class="invoice-meta" style="margin-top:0.25rem">
               <span>${escHtml(inv.clients?.name ?? '—')}</span>
@@ -38,19 +50,38 @@ export async function mount(container) {
             </div>
           </div>
           <div style="text-align:right">
-            <div class="invoice-amount">${fmtISK(inv.total_amount)}</div>
+            <div class="invoice-amount" style="${isCredit ? 'color:var(--red)' : isCancelled ? 'color:var(--text3);text-decoration:line-through' : ''}">${fmtISK(inv.total_amount)}</div>
             <div style="margin-top:0.3rem">
-              <span class="badge ${statusClass}">${inv.status}</span>
+              <span class="badge ${statusClass}">${statusLabel}</span>
             </div>
           </div>
         </div>
         <div class="invoice-meta">
           <span>Cycle: ${fmtDate(inv.cycle_start)} – ${fmtDate(inv.cycle_end)}</span>
+          ${isPaid ? `<span>·</span><span>Paid ${fmtDate(inv.paid_at?.slice(0, 10))}</span>` : ''}
+          ${isCredit ? `<span>·</span><span>Cancels invoice</span>` : ''}
+          ${isCancelled ? `<span>·</span><span>Cancelled via credit invoice</span>` : ''}
         </div>
         <div class="invoice-actions">
           ${inv.pdf_path
             ? `<button class="btn-xs btn-xs-outline" onclick="window.viewInvoicePDF('${inv.id}', '${escHtml(inv.pdf_path)}', '${escHtml(inv.invoice_number)}')">
                  👁 View PDF
+               </button>`
+            : ''}
+          ${!inv.is_draft && !isCredit && !isCancelled && inv.status === 'sent' && !isPaid
+            ? `<button class="btn-xs btn-xs-green" onclick="window.markInvoicePaid('${inv.id}')">
+                 ✓ Mark as paid
+               </button>`
+            : ''}
+          ${!inv.is_draft && !isCredit && !isCancelled && isPaid
+            ? `<button class="btn-xs btn-xs-outline" onclick="window.markInvoiceUnpaid('${inv.id}')">
+                 Undo paid
+               </button>`
+            : ''}
+          ${!inv.is_draft && !isCredit && !isCancelled && !hasCredit
+            ? `<button class="btn-xs btn-xs-outline" style="color:var(--red);border-color:rgba(224,92,92,0.3)"
+                 onclick="window.issueCreditInvoice('${inv.id}', '${escHtml(inv.invoice_number)}')">
+                 ⟲ Issue credit invoice
                </button>`
             : ''}
           ${inv.status === 'failed'
@@ -62,6 +93,44 @@ export async function mount(container) {
   });
 
   container.innerHTML = html;
+}
+
+export async function markPaid(invoiceId) {
+  const { error } = await sb
+    .from('invoices')
+    .update({ paid_at: new Date().toISOString() })
+    .eq('id', invoiceId)
+    .eq('user_id', currentUser.id);
+
+  if (error) { showToast('Could not update invoice', 'error'); return; }
+  await restamp(invoiceId);
+  showToast('Marked as paid');
+  mount(document.getElementById('page-invoices'));
+}
+
+export async function markUnpaid(invoiceId) {
+  const { error } = await sb
+    .from('invoices')
+    .update({ paid_at: null })
+    .eq('id', invoiceId)
+    .eq('user_id', currentUser.id);
+
+  if (error) { showToast('Could not update invoice', 'error'); return; }
+  await restamp(invoiceId);
+  showToast('Marked as unpaid');
+  mount(document.getElementById('page-invoices'));
+}
+
+async function restamp(invoiceId) {
+  try {
+    await fetch('/.netlify/functions/restamp-invoice-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceId, userId: currentUser.id }),
+    });
+  } catch (err) {
+    console.error('Restamp failed', err);
+  }
 }
 
 export async function viewInvoicePDF(invoiceId, pdfPath, invoiceNumber) {

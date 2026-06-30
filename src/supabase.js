@@ -1,10 +1,6 @@
 // src/supabase.js
-// Single Supabase client instance shared across the entire app.
-// Loaded once — all modules import from here.
-
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-// ── Environment detection ──────────────────────────────────────
 const TEST_HOST = 'test--enchanting-sfogliatella-b979c6.netlify.app';
 
 function detectEnv() {
