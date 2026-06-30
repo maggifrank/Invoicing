@@ -20,8 +20,19 @@ export async function mount(container) {
     return;
   }
 
-  const drafts = data.filter(inv => inv.is_draft);
-  const real   = data.filter(inv => !inv.is_draft);
+  const drafts = data
+    .filter(inv => inv.is_draft)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const real = data
+    .filter(inv => !inv.is_draft)
+    .sort((a, b) => {
+      const cycleDiff = new Date(b.cycle_start) - new Date(a.cycle_start);
+      if (cycleDiff !== 0) return cycleDiff;
+      const nameDiff = (a.clients?.name ?? '').localeCompare(b.clients?.name ?? '');
+      if (nameDiff !== 0) return nameDiff;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
 
   let html = '';
 
