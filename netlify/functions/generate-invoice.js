@@ -27,12 +27,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
   const body = safeJSON(event.body);
-  const { clientId, userId, isDraft = false, sendEmail = false, cycleOverride } = body;
+  const { clientId, userId, isDraft = false, sendEmail = false, cycleOverride, isScheduled = false } = body;
 
   if (!clientId || !userId) return respond(400, { error: 'clientId and userId required' });
 
   try {
-    const result = await generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride });
+    const result = await generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride, isScheduled });
     return respond(200, result);
   } catch (err) {
     console.error('[generate-invoice]', err);
@@ -41,23 +41,14 @@ exports.handler = async (event) => {
 };
 
 // ── Core generator — also exported for use by scheduled functions ──
-async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride }) {
-  // ── 1. Load client + profile ──
-  const { data: client, error: clientErr } = await sb
-    .from('clients')
-    .select('*')
-    .eq('id', clientId)
-    .eq('user_id', userId)
-    .single();
+async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride, isScheduled = false }) {
+  // ── 1. Load client + profile in parallel (independent queries) ──
+  const [{ data: client, error: clientErr }, { data: profile, error: profileErr }] = await Promise.all([
+    sb.from('clients').select('*').eq('id', clientId).eq('user_id', userId).single(),
+    sb.from('profiles').select('*').eq('id', userId).single(),
+  ]);
 
   if (clientErr || !client) throw new Error('Client not found');
-
-  const { data: profile, error: profileErr } = await sb
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
   if (profileErr || !profile) throw new Error('Profile not found');
 
   const p = profile;
@@ -76,7 +67,7 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
 
   // ── 2. Determine cycle dates ──
   const { cycleStart, cycleEnd, issuedDate, dueDate, finalDate } =
-    cycleOverride ?? getCurrentCycleDates(profile.cycle_start_day ?? 21);
+    cycleOverride ?? getCurrentCycleDates(profile.cycle_start_day ?? 21, isScheduled);
 
   // ── 3. Idempotency check (real invoices only) ──
   if (!isDraft) {
@@ -329,6 +320,8 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
 }
 
 exports.generateInvoice = generateInvoice;
+exports.htmlToPDF       = htmlToPDF;
+exports.buildInvoiceHTML = buildInvoiceHTML;
 
 // ── PDF generation via PDFShift ────────────────────────────────
 async function htmlToPDF(html) {
@@ -357,7 +350,7 @@ async function htmlToPDF(html) {
 function buildInvoiceHTML({ invoiceNumber, issuedDate, dueDate, finalDate,
   issuer, client, entries, kmEntries, kmRate,
   totalMinutes, subtotal, vskRate, vskAmount, totalAmount,
-  bankAccount, bankUtibú, bankHb, bankReikningur, isDraft }) {
+  bankAccount, bankUtibú, bankHb, bankReikningur, isDraft, stamp }) {
 
   const vskLabel   = issuer.issuer_vsk ? `vsknr: ${esc(issuer.issuer_vsk)}` : 'vsknr:';
   const vskPct     = `${vskRate}%`;
@@ -408,6 +401,16 @@ body { font-family:Arial,sans-serif; font-size:10pt; color:#222; background:#fff
 ${isDraft ? `
 body::before { content:'DRAFT'; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-45deg);
   font-size:120pt; font-weight:900; color:rgba(200,0,0,0.08); z-index:0; pointer-events:none; }
+` : ''}
+${stamp === 'paid' ? `
+body::after { content:'GREITT'; position:fixed; top:30%; left:50%; transform:translate(-50%,-50%) rotate(-20deg);
+  font-size:70pt; font-weight:900; color:rgba(40,140,60,0.35); z-index:0; pointer-events:none;
+  border:8px solid rgba(40,140,60,0.35); padding:0.1em 0.3em; border-radius:12px; }
+` : ''}
+${stamp === 'cancelled' ? `
+body::after { content:'ÓGILT'; position:fixed; top:30%; left:50%; transform:translate(-50%,-50%) rotate(-20deg);
+  font-size:70pt; font-weight:900; color:rgba(200,0,0,0.35); z-index:0; pointer-events:none;
+  border:8px solid rgba(200,0,0,0.35); padding:0.1em 0.3em; border-radius:12px; }
 ` : ''}
 .issuer { text-align:center; margin-bottom:1.5rem; font-size:9pt; position:relative; z-index:1; }
 .title-block { text-align:right; margin-bottom:1rem; }
@@ -509,7 +512,7 @@ function buildEmailHTML({ invoiceNumber, issuer, client, totalAmount, dueDate, i
 }
 
 // ── Date helpers ───────────────────────────────────────────────
-function getCurrentCycleDates(cycleStartDay = 21) {
+function getCurrentCycleDates(cycleStartDay = 21, isScheduled = false) {
   const now = new Date();
   const day = now.getDate();
   const y   = now.getFullYear();
@@ -525,10 +528,18 @@ function getCurrentCycleDates(cycleStartDay = 21) {
     cycleEndDate   = new Date(y, m, cycleStartDay - 1);
   }
 
-  // Invoice dates: issued 25th, due same day, final 1st of next
-  const issuedDate = new Date(y, m, 25);
-  const dueDate    = new Date(y, m, 25); // same as issued
-  const finalDate  = new Date(y, m + 1, 1);
+  let issuedDate, dueDate, finalDate;
+  if (isScheduled) {
+    // Automated 25th run: issued + due = 25th, final = 1st of next month
+    issuedDate = new Date(y, m, 25);
+    dueDate    = new Date(y, m, 25);
+    finalDate  = new Date(y, m + 1, 1);
+  } else {
+    // Manual send (any day): issued + due = today, final = today + 7 days
+    issuedDate = new Date(y, m, day);
+    dueDate    = new Date(y, m, day);
+    finalDate  = new Date(y, m, day + 7);
+  }
 
   return {
     cycleStart:  iso(cycleStartDate),
@@ -555,7 +566,7 @@ function fmtTime(t) {
 
 function fmtISK(n)    { return Number(n).toLocaleString('is-IS'); }
 function fmtISKDec(n) { return Number(n).toLocaleString('is-IS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function fmtDec(n)    { return n.toLocaleString('is-IS', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+function fmtDec(n)    { return n.toLocaleString('is-IS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function esc(s)       { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function safeJSON(s)  { try { return JSON.parse(s); } catch { return {}; } }
 function respond(code, body) { return { statusCode: code, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }; }

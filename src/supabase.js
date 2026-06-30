@@ -1,7 +1,4 @@
 // src/supabase.js
-// Single Supabase client instance shared across the entire app.
-// Loaded once — all modules import from here.
-
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 // ── Environment detection ──────────────────────────────────────

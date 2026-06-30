@@ -5,6 +5,9 @@
 -- Run AFTER 001_timelog.sql.
 -- ════════════════════════════════════════════════════════════
 
+-- ── Invoice status enum ───────────────────────────────────────
+create type invoice_status as enum ('pending', 'sent', 'failed', 'cancelled');
+
 
 -- ── Extend profiles with issuer details ──────────────────────
 alter table profiles
@@ -99,10 +102,14 @@ create table invoices (
 
   pdf_path          text,
   is_draft          boolean not null default false,
-  status            text not null default 'pending'
-                    check (status in ('pending', 'sent', 'failed')),
+  status            invoice_status not null default 'pending',
   sent_at           timestamptz,
+  paid_at           timestamptz,
   error_message     text,
+
+  -- Credit invoices (kreditreikningur) — cancels a previously sent invoice
+  is_credit             boolean not null default false,
+  credit_for_invoice_id uuid references invoices(id),
 
   -- Drafts always insert (each is a point-in-time snapshot)
   -- Real invoices are protected by application-level duplicate check

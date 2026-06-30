@@ -163,7 +163,6 @@ export async function saveSettings(profile) {
 
   if (error) { showToast('Could not save settings', 'error'); console.error(error); return; }
 
-  // Update in-memory profile
   if (profile) Object.assign(profile, updates);
   showToast('Settings saved');
 }

@@ -100,6 +100,29 @@ window.closeModal = (id) => document.getElementById(id)?.classList.remove('open'
 window.viewInvoicePDF = (invoiceId, pdfPath, invoiceNumber) =>
   InvoicesPage.viewInvoicePDF(invoiceId, pdfPath, invoiceNumber);
 
+window.markInvoicePaid   = (id) => InvoicesPage.markPaid(id);
+window.markInvoiceUnpaid = (id) => InvoicesPage.markUnpaid(id);
+
+window.issueCreditInvoice = async (invoiceId, invoiceNumber) => {
+  if (!confirm(`Issue a credit invoice for ${invoiceNumber}? This will cancel the invoice and unlock its time entries for correction. This cannot be undone.`)) return;
+
+  showToast('Issuing credit invoice…');
+  try {
+    const res  = await fetch('/.netlify/functions/issue-credit-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceId, userId: currentUser.id, unlockEntries: true }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Unknown error');
+
+    showToast(`Credit invoice ${json.creditNumber} sent — entries unlocked`);
+    InvoicesPage.mount(document.getElementById('page-invoices'));
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+};
+
 // Preview invoice — generates PDF via function and shows in modal
 window.previewInvoice = async (clientId, sendDraft) => {
   const btn = document.querySelector(`[onclick*="previewInvoice('${clientId}'"]`);

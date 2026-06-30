@@ -36,6 +36,7 @@ exports.handler = async () => {
         userId:    client.user_id,
         isDraft:   false,
         sendEmail: true,
+        isScheduled: true,
       });
       console.log(`[send-invoices] ✓ Invoice sent for ${client.name}`);
       sent++;
