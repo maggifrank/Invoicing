@@ -20,79 +20,121 @@ export async function mount(container) {
     return;
   }
 
+  const drafts = data.filter(inv => inv.is_draft);
+  const real   = data.filter(inv => !inv.is_draft);
+
   let html = '';
-  data.forEach(inv => {
-    const isPaid      = !!inv.paid_at;
-    const isCredit    = inv.is_credit;
-    const isCancelled = inv.status === 'cancelled';
-    const statusClass = isCredit ? 'badge-red'
-      : isCancelled ? 'badge-neutral'
-      : isPaid ? 'badge-green'
-      : { sent: 'badge-amber', pending: 'badge-amber', failed: 'badge-red' }[inv.status] ?? 'badge-neutral';
-    const statusLabel = isCredit ? 'credit' : isCancelled ? 'cancelled' : isPaid ? 'paid' : inv.status === 'sent' ? 'unpaid' : inv.status;
 
-    // Find if a credit already exists for this invoice
-    const hasCredit = !inv.is_credit && data.some(d => d.credit_for_invoice_id === inv.id);
-
+  if (drafts.length) {
     html += `
-      <div class="invoice-card">
-        <div class="invoice-card-header">
-          <div>
-            <div class="invoice-number">
-              ${escHtml(inv.invoice_number)}
-              ${inv.is_draft ? '<span class="badge badge-amber">draft</span>' : ''}
-              ${isCredit ? '<span class="badge badge-red">kredit</span>' : ''}
-            </div>
-            <div class="invoice-meta" style="margin-top:0.25rem">
-              <span>${escHtml(inv.clients?.name ?? '—')}</span>
-              <span>·</span>
-              <span>${fmtDate(inv.issued_date)}</span>
-            </div>
-          </div>
-          <div style="text-align:right">
-            <div class="invoice-amount" style="${isCredit ? 'color:var(--red)' : isCancelled ? 'color:var(--text3);text-decoration:line-through' : ''}">${fmtISK(inv.total_amount)}</div>
-            <div style="margin-top:0.3rem">
-              <span class="badge ${statusClass}">${statusLabel}</span>
-            </div>
+      <div class="period-block" id="invoices-drafts">
+        <div class="period-header">
+          <span class="period-label">Drafts</span>
+          <div class="period-meta">
+            <span class="period-total">${drafts.length}</span>
+            <span class="period-chevron">▼</span>
           </div>
         </div>
-        <div class="invoice-meta">
-          <span>Cycle: ${fmtDate(inv.cycle_start)} – ${fmtDate(inv.cycle_end)}</span>
-          ${isPaid ? `<span>·</span><span>Paid ${fmtDate(inv.paid_at?.slice(0, 10))}</span>` : ''}
-          ${isCredit ? `<span>·</span><span>Cancels invoice</span>` : ''}
-          ${isCancelled ? `<span>·</span><span>Cancelled via credit invoice</span>` : ''}
-        </div>
-        <div class="invoice-actions">
-          ${inv.pdf_path
-            ? `<button class="btn-xs btn-xs-outline" onclick="window.viewInvoicePDF('${inv.id}', '${escHtml(inv.pdf_path)}', '${escHtml(inv.invoice_number)}')">
-                 👁 View PDF
-               </button>`
-            : ''}
-          ${!inv.is_draft && !isCredit && !isCancelled && inv.status === 'sent' && !isPaid
-            ? `<button class="btn-xs btn-xs-green" onclick="window.markInvoicePaid('${inv.id}')">
-                 ✓ Mark as paid
-               </button>`
-            : ''}
-          ${!inv.is_draft && !isCredit && !isCancelled && isPaid
-            ? `<button class="btn-xs btn-xs-outline" onclick="window.markInvoiceUnpaid('${inv.id}')">
-                 Undo paid
-               </button>`
-            : ''}
-          ${!inv.is_draft && !isCredit && !isCancelled && !hasCredit
-            ? `<button class="btn-xs btn-xs-outline" style="color:var(--red);border-color:rgba(224,92,92,0.3)"
-                 onclick="window.issueCreditInvoice('${inv.id}', '${escHtml(inv.invoice_number)}')">
-                 ⟲ Issue credit invoice
-               </button>`
-            : ''}
-          ${inv.status === 'failed'
-            ? `<span style="font-size:0.7rem;color:var(--red)">${escHtml(inv.error_message ?? '')}</span>`
-            : ''}
+        <div class="period-body">
+          ${drafts.map(inv => invoiceCardHTML(inv, data)).join('')}
         </div>
       </div>
     `;
-  });
+  }
+
+  if (real.length) {
+    html += `
+      <div class="period-block" id="invoices-real">
+        <div class="period-header">
+          <span class="period-label">Invoices</span>
+          <div class="period-meta">
+            <span class="period-total">${real.length}</span>
+            <span class="period-chevron">▼</span>
+          </div>
+        </div>
+        <div class="period-body">
+          ${real.map(inv => invoiceCardHTML(inv, data)).join('')}
+        </div>
+      </div>
+    `;
+  }
 
   container.innerHTML = html;
+
+  container.querySelectorAll('.period-header').forEach(h => {
+    h.addEventListener('click', () => h.closest('.period-block').classList.toggle('collapsed'));
+  });
+}
+
+function invoiceCardHTML(inv, allInvoices) {
+  const isPaid      = !!inv.paid_at;
+  const isCredit    = inv.is_credit;
+  const isCancelled = inv.status === 'cancelled';
+  const statusClass = isCredit ? 'badge-red'
+    : isCancelled ? 'badge-neutral'
+    : isPaid ? 'badge-green'
+    : { sent: 'badge-amber', pending: 'badge-amber', failed: 'badge-red' }[inv.status] ?? 'badge-neutral';
+  const statusLabel = isCredit ? 'credit' : isCancelled ? 'cancelled' : isPaid ? 'paid' : inv.status === 'sent' ? 'unpaid' : inv.status;
+
+  // Find if a credit already exists for this invoice
+  const hasCredit = !inv.is_credit && allInvoices.some(d => d.credit_for_invoice_id === inv.id);
+
+  return `
+    <div class="invoice-card">
+      <div class="invoice-card-header">
+        <div>
+          <div class="invoice-number">
+            ${escHtml(inv.invoice_number)}
+            ${inv.is_draft ? '<span class="badge badge-amber">draft</span>' : ''}
+            ${isCredit ? '<span class="badge badge-red">kredit</span>' : ''}
+          </div>
+          <div class="invoice-meta" style="margin-top:0.25rem">
+            <span>${escHtml(inv.clients?.name ?? '—')}</span>
+            <span>·</span>
+            <span>${fmtDate(inv.issued_date)}</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="invoice-amount" style="${isCredit ? 'color:var(--red)' : isCancelled ? 'color:var(--text3);text-decoration:line-through' : ''}">${fmtISK(inv.total_amount)}</div>
+          <div style="margin-top:0.3rem">
+            <span class="badge ${statusClass}">${statusLabel}</span>
+          </div>
+        </div>
+      </div>
+      <div class="invoice-meta">
+        <span>Cycle: ${fmtDate(inv.cycle_start)} – ${fmtDate(inv.cycle_end)}</span>
+        ${isPaid ? `<span>·</span><span>Paid ${fmtDate(inv.paid_at?.slice(0, 10))}</span>` : ''}
+        ${isCredit ? `<span>·</span><span>Cancels invoice</span>` : ''}
+        ${isCancelled ? `<span>·</span><span>Cancelled via credit invoice</span>` : ''}
+      </div>
+      <div class="invoice-actions">
+        ${inv.pdf_path
+          ? `<button class="btn-xs btn-xs-outline" onclick="window.viewInvoicePDF('${inv.id}', '${escHtml(inv.pdf_path)}', '${escHtml(inv.invoice_number)}')">
+               👁 View PDF
+             </button>`
+          : ''}
+        ${!inv.is_draft && !isCredit && !isCancelled && inv.status === 'sent' && !isPaid
+          ? `<button class="btn-xs btn-xs-green" onclick="window.markInvoicePaid('${inv.id}')">
+               ✓ Mark as paid
+             </button>`
+          : ''}
+        ${!inv.is_draft && !isCredit && !isCancelled && isPaid
+          ? `<button class="btn-xs btn-xs-outline" onclick="window.markInvoiceUnpaid('${inv.id}')">
+               Undo paid
+             </button>`
+          : ''}
+        ${!inv.is_draft && !isCredit && !isCancelled && !hasCredit
+          ? `<button class="btn-xs btn-xs-outline" style="color:var(--red);border-color:rgba(224,92,92,0.3)"
+               onclick="window.issueCreditInvoice('${inv.id}', '${escHtml(inv.invoice_number)}')">
+               ⟲ Issue credit invoice
+             </button>`
+          : ''}
+        ${inv.status === 'failed'
+          ? `<span style="font-size:0.7rem;color:var(--red)">${escHtml(inv.error_message ?? '')}</span>`
+          : ''}
+      </div>
+    </div>
+  `;
 }
 
 export async function markPaid(invoiceId) {
