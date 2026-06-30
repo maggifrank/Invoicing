@@ -171,7 +171,7 @@ Set these in the Netlify dashboard per deploy context (test/prod):
 
 ```
 SUPABASE_URL           — Supabase project URL
-SUPABASE_SERVICE   — service role key (secret, server-side only)
+SUPABASE_SERVICE_KEY   — service role key (secret, server-side only)
 RESEND_API_KEY         — Resend API key
 INVOICE_FROM_EMAIL     — e.g. invoices@talva.is
 PDFSHIFT_API_KEY       — PDFShift API key (pdfshift.io)
