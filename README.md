@@ -15,10 +15,10 @@ Invoice management app for generating and sending Icelandic-compliant PDF invoic
   - ✉ Send draft to me — generate DRAFT PDF and email to your preview address
   - ⚡ Send invoice — send real invoice to client, lock entries
 - **Per-invoice controls** on the invoices tab:
-  - ✓ Mark as paid / Undo paid — track payment status on sent invoices
-  - ⟲ Issue credit invoice — cancel a sent invoice and unlock its entries for correction
+  - ✓ Mark as paid / Undo paid — track payment status on sent invoices, regenerates the PDF with a green "GREITT" stamp
+  - ⟲ Issue credit invoice — cancel a sent invoice and unlock its entries for correction, regenerates the original's PDF with a red "ÓGILT" stamp
 - **Automatic monthly sends:**
-  - 22nd at 09:00 UTC — DRAFT invoice emailed to your preview address
+  - 22nd at 09:00 UTC — DRAFT invoice emailed to your preview address. If any client has no logged work that cycle, a single summary email lists them so you have 3 days to fix it before the 25th
   - 25th at 09:00 UTC — real invoice sent to client
 - Each draft generation creates a new immutable row with the frozen amount at that point in time
 - Drafts older than 14 days are cleaned up automatically on next generation
@@ -26,6 +26,7 @@ Invoice management app for generating and sending Icelandic-compliant PDF invoic
 - Invoice format complies with Icelandic law (reglugerð nr. 505/2013)
 - VSK (VAT) support — set rate in Settings. Currently 0% (not registered). Set to 24 when registered with Skatturinn
 - Hours and km on invoice line items display with 2 decimal places (e.g. 15 minutes = 0.25 klst)
+- Invoice dates depend on context — see "Invoice dates" below
 - Invite new users directly from Settings — no need to go through the Supabase dashboard
 - After sending, `invoice_id` and `invoiced_at` are written back to both `entries` and `km_entries` in the logger app — entries become locked
 
@@ -55,9 +56,10 @@ invoices/
   netlify/
     functions/
       generate-invoice.js           — core: PDF via PDFShift, storage, email, entry locking
-      issue-credit-invoice.js       — generates a credit invoice, unlocks original entries
+      issue-credit-invoice.js       — generates a credit invoice, cancels + restamps original, unlocks entries
+      restamp-invoice-pdf.js        — regenerates an existing invoice PDF with GREITT/ÓGILT stamp in place
       invite-user.js                — sends a Supabase invite email via the Admin API
-      send-staging.js               — scheduled 22nd: draft to preview_email
+      send-staging.js               — scheduled 22nd: draft to preview_email, plus no-work summary
       send-invoices.js              — scheduled 25th: real invoice to client
   netlify.toml                      — SPA redirect, dev port 8889, secrets scan omit
   package.json                      — @supabase/supabase-js, resend
@@ -212,8 +214,8 @@ netlify functions:invoke send-invoices --port 8889
 ### Automatic
 | Date | What happens |
 |---|---|
-| 22nd at 09:00 UTC | DRAFT PDF per client, watermarked, emailed to `preview_email` |
-| 25th at 09:00 UTC | Real PDF per client, emailed to client, entries locked |
+| 22nd at 09:00 UTC | DRAFT PDF per client, watermarked, emailed to `preview_email`. If any client has zero logged entries for the cycle, one summary email is sent listing them (`Enginn skráð vinna fyrir [client] á þessu tímabili.`) — gives 3 days to fix before the 25th |
+| 25th at 09:00 UTC | Real PDF per client, emailed to client, entries locked. Clients with no entries are silently skipped, no email sent |
 
 ### Manual (dashboard)
 | Action | What happens |
@@ -225,14 +227,20 @@ netlify functions:invoke send-invoices --port 8889
 ### Manual (invoices tab)
 | Action | What happens |
 |---|---|
-| ✓ Mark as paid | Sets `paid_at`, badge turns green |
-| Undo paid | Clears `paid_at` |
-| ⟲ Issue credit invoice | Generates and sends a `KREDITREIKNINGUR` cancelling the invoice in full, marks the original as `cancelled`, unlocks its entries |
+| ✓ Mark as paid | Sets `paid_at`, badge turns green, PDF regenerated in place with a green "GREITT" stamp |
+| Undo paid | Clears `paid_at`, PDF regenerated in place with the stamp removed |
+| ⟲ Issue credit invoice | Generates and sends a `KREDITREIKNINGUR` cancelling the invoice in full, marks the original `cancelled`, regenerates its PDF in place with a red "ÓGILT" stamp, unlocks its entries |
 
 ### Invoice dates
-- **Útgáfudagur** (issue date): 25th of the month
-- **Gjalddagi** (due date): 25th of the month
-- **Eindagi** (final deadline): 1st of the following month
+Dates depend on how the invoice was generated:
+
+| Context | Útgáfudagur / Gjalddagi | Eindagi |
+|---|---|---|
+| Scheduled 22nd/25th runs | 25th of the month | 1st of the following month |
+| Manual Preview / Send draft / Send invoice | Today's date | Today + 7 days |
+| Credit invoice | Today's date | Today + 7 days |
+
+The 22nd draft preview uses the scheduled date scheme so it accurately previews what the 25th invoice will show.
 
 ### Draft lifecycle
 - Each preview or send-draft creates a new immutable row with frozen `total_amount`
@@ -251,11 +259,26 @@ Real invoices can never be edited or deleted — only cancelled via a credit inv
 3. Confirm — this is irreversible
 4. A `KREDITREIKNINGUR` is generated using the **next number in the normal client invoice sequence** (not a special suffix — it's indistinguishable from a regular invoice in numbering), with full line items matching the original and the total amount due referencing the cancelled invoice number, and emailed to the client
 5. The original invoice's status is set to `cancelled` — shown with a grey badge and a struck-through amount, and the **Mark as paid** / **Issue credit invoice** buttons disappear from it
-6. The time and km entries originally locked by that invoice are unlocked
-7. Go to Logger, correct the entries (fix the time, client, rate — whatever was wrong)
-8. Generate and send a fresh invoice for that cycle as normal
+6. The original's PDF is regenerated in place with a red "ÓGILT" stamp so the downloadable document itself reflects its cancelled state, not just the app's UI
+7. The time and km entries originally locked by that invoice are unlocked
+8. Go to Logger, correct the entries (fix the time, client, rate — whatever was wrong)
+9. Generate and send a fresh invoice for that cycle as normal
 
 A credit invoice can only be issued once per original invoice — the button disappears once a credit exists. Credits cannot be issued for drafts or for other credit invoices.
+
+---
+
+## PDF status stamps
+
+When the status of a sent invoice changes after it was first generated, the stored PDF is regenerated in place at the same `pdf_path` so the file itself — not just the app UI — reflects reality. This matters because invoices may be downloaded, forwarded, or archived outside the app.
+
+| Status | Stamp |
+|---|---|
+| Marked as paid | Green diagonal "GREITT" |
+| Undo paid | Stamp removed, plain reissue |
+| Cancelled via credit invoice | Red diagonal "ÓGILT" |
+
+This is handled by `restamp-invoice-pdf.js`, which rebuilds the PDF from the invoice row's own frozen snapshot data (issuer/client details, line items, totals) — no live entries are touched, and the existing signed URL keeps working since the file path doesn't change. If a restamp call fails, it's treated as non-fatal — the status itself still updates correctly, just without the visual stamp.
 
 ---
 

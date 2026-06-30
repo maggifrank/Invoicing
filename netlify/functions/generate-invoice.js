@@ -27,12 +27,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
   const body = safeJSON(event.body);
-  const { clientId, userId, isDraft = false, sendEmail = false, cycleOverride } = body;
+  const { clientId, userId, isDraft = false, sendEmail = false, cycleOverride, isScheduled = false } = body;
 
   if (!clientId || !userId) return respond(400, { error: 'clientId and userId required' });
 
   try {
-    const result = await generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride });
+    const result = await generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride, isScheduled });
     return respond(200, result);
   } catch (err) {
     console.error('[generate-invoice]', err);
@@ -41,7 +41,7 @@ exports.handler = async (event) => {
 };
 
 // ── Core generator — also exported for use by scheduled functions ──
-async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride }) {
+async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride, isScheduled = false }) {
   // ── 1. Load client + profile in parallel (independent queries) ──
   const [{ data: client, error: clientErr }, { data: profile, error: profileErr }] = await Promise.all([
     sb.from('clients').select('*').eq('id', clientId).eq('user_id', userId).single(),
@@ -67,7 +67,7 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
 
   // ── 2. Determine cycle dates ──
   const { cycleStart, cycleEnd, issuedDate, dueDate, finalDate } =
-    cycleOverride ?? getCurrentCycleDates(profile.cycle_start_day ?? 21);
+    cycleOverride ?? getCurrentCycleDates(profile.cycle_start_day ?? 21, isScheduled);
 
   // ── 3. Idempotency check (real invoices only) ──
   if (!isDraft) {
@@ -512,7 +512,7 @@ function buildEmailHTML({ invoiceNumber, issuer, client, totalAmount, dueDate, i
 }
 
 // ── Date helpers ───────────────────────────────────────────────
-function getCurrentCycleDates(cycleStartDay = 21) {
+function getCurrentCycleDates(cycleStartDay = 21, isScheduled = false) {
   const now = new Date();
   const day = now.getDate();
   const y   = now.getFullYear();
@@ -528,10 +528,18 @@ function getCurrentCycleDates(cycleStartDay = 21) {
     cycleEndDate   = new Date(y, m, cycleStartDay - 1);
   }
 
-  // Invoice dates: issued 25th, due same day, final 1st of next
-  const issuedDate = new Date(y, m, 25);
-  const dueDate    = new Date(y, m, 25); // same as issued
-  const finalDate  = new Date(y, m + 1, 1);
+  let issuedDate, dueDate, finalDate;
+  if (isScheduled) {
+    // Automated 25th run: issued + due = 25th, final = 1st of next month
+    issuedDate = new Date(y, m, 25);
+    dueDate    = new Date(y, m, 25);
+    finalDate  = new Date(y, m + 1, 1);
+  } else {
+    // Manual send (any day): issued + due = today, final = today + 7 days
+    issuedDate = new Date(y, m, day);
+    dueDate    = new Date(y, m, day);
+    finalDate  = new Date(y, m, day + 7);
+  }
 
   return {
     cycleStart:  iso(cycleStartDate),

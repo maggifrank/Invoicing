@@ -137,7 +137,7 @@ async function issueCreditInvoice({ invoiceId, userId, unlockEntries }) {
     cycle_end:        original.cycle_end,
     issued_date:      isoToday(),
     due_date:         isoToday(),
-    final_date:       isoToday(),
+    final_date:       isoPlusDays(7),
     hourly_rate:      original.hourly_rate,
     total_minutes:    original.total_minutes,
     total_amount:     -original.total_amount,

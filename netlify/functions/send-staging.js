@@ -54,6 +54,7 @@ exports.handler = async () => {
         userId:    client.user_id,
         isDraft:   true,
         sendEmail: true,
+        isScheduled: true,
       });
       console.log(`[send-staging] ✓ Draft sent for ${client.name}`);
       sent++;
