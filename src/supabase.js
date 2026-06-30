@@ -1,7 +1,6 @@
 // src/supabase.js
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-// ── Environment detection ──────────────────────────────────────
 const TEST_HOST = 'test--enchanting-sfogliatella-b979c6.netlify.app';
 
 function detectEnv() {
