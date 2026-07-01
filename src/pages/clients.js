@@ -126,7 +126,8 @@ async function loadClientIntoModal(id) {
   document.getElementById('cm-prefix').value      = data.invoice_prefix || '';
   document.getElementById('cm-counter').value     = data.invoice_counter|| '';
   document.getElementById('cm-rate').value        = data.hourly_rate    || '';
-  document.getElementById('cm-km-rate').value     = data.km_rate        || '';
+  document.getElementById('cm-km-rate').value          = data.km_rate        || '';
+  document.getElementById('cm-show-time-range').checked = data.show_time_range !== false;
   document.getElementById('cm-bank-account').value= data.bank_account   || '';
   document.getElementById('cm-utibú').value       = data.bank_utibú     || '';
   document.getElementById('cm-hb').value          = data.bank_hb        || '';
@@ -164,6 +165,7 @@ export async function saveClient() {
     invoice_counter: parseInt(document.getElementById('cm-counter').value)    || 1001,
     hourly_rate:     parseInt(document.getElementById('cm-rate').value)       || (_profile.default_rate ?? 0),
     km_rate:         parseInt(document.getElementById('cm-km-rate').value)     || null,
+    show_time_range: document.getElementById('cm-show-time-range').checked,
     bank_account:    document.getElementById('cm-bank-account').value.trim()  || null,
     bank_utibú:      document.getElementById('cm-utibú').value.trim()         || null,
     bank_hb:         document.getElementById('cm-hb').value.trim()            || null,

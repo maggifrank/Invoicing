@@ -135,7 +135,7 @@ async function generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOver
     issuer: p, client, entries: entries ?? [], kmEntries: kmEntries ?? [], kmRate,
     totalMinutes, subtotal, vskRate, vskAmount, totalAmount,
     bankAccount, bankUtibú, bankHb, bankReikningur,
-    isDraft,
+    isDraft, showTimeRange: client.show_time_range !== false,
   });
 
   const pdfBuffer = await htmlToPDF(pdfHtml);
@@ -350,7 +350,7 @@ async function htmlToPDF(html) {
 function buildInvoiceHTML({ invoiceNumber, issuedDate, dueDate, finalDate,
   issuer, client, entries, kmEntries, kmRate,
   totalMinutes, subtotal, vskRate, vskAmount, totalAmount,
-  bankAccount, bankUtibú, bankHb, bankReikningur, isDraft, stamp }) {
+  bankAccount, bankUtibú, bankHb, bankReikningur, isDraft, stamp, showTimeRange = true }) {
 
   const vskLabel   = issuer.issuer_vsk ? `vsknr: ${esc(issuer.issuer_vsk)}` : 'vsknr:';
   const vskPct     = `${vskRate}%`;
@@ -363,10 +363,11 @@ function buildInvoiceHTML({ invoiceNumber, issuedDate, dueDate, finalDate,
     const lineNet   = Math.round(hrs * client.hourly_rate);
     const lineVsk   = Math.round(lineNet * (vskRate / 100));
     const lineTotal = lineNet + lineVsk;
+    const timeRange = showTimeRange ? ` ${fmtTime(e.time_from)} - ${fmtTime(e.time_until)}` : '';
     return `<tr>
       <td>${lineNum}. 2</td>
-      <td>${esc(e.name)} ${fmtTime(e.time_from)} - ${fmtTime(e.time_until)} ${fmtDec(hrs)} klst</td>
-      <td>${fmtDec(hrs)} klst</td>
+      <td>${esc(e.name)}${timeRange}</td>
+      <td>${fmtDec(hrs)}</td>
       <td>${fmtISK(client.hourly_rate)}</td>
       <td>${vskPct}</td>
       <td>${fmtISK(lineNet)}</td>
@@ -382,8 +383,8 @@ function buildInvoiceHTML({ invoiceNumber, issuedDate, dueDate, finalDate,
     const lineTotal = lineNet + lineVsk;
     return `<tr>
       <td>${lineNum}. 3</td>
-      <td>${esc(e.from_location)} → ${esc(e.to_location)}${e.is_round_trip ? ' (báðar leiðir)' : ''} ${fmtDec(km)} km</td>
-      <td>${fmtDec(km)} km</td>
+      <td>${esc(e.from_location)} → ${esc(e.to_location)}${e.is_round_trip ? ' (báðar leiðir)' : ''}</td>
+      <td>${fmtDec(km)}</td>
       <td>${fmtISK(kmRate)}</td>
       <td>${vskPct}</td>
       <td>${fmtISK(lineNet)}</td>
