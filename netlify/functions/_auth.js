@@ -19,4 +19,15 @@ async function verifyUser(sb, event) {
   return data.user;
 }
 
-module.exports = { verifyUser };
+// send-invoices/send-staging are triggered by a pg_cron job (via pg_net)
+// in Supabase rather than Netlify's own scheduler, since Netlify's
+// schedule() wrapper was found to still accept direct HTTP requests in
+// practice. The cron job attaches this shared secret as a header; a
+// request without the matching secret is rejected outright.
+function requireSchedulerSecret(event) {
+  const provided = event.headers?.['x-scheduled-secret'] || event.headers?.['X-Scheduled-Secret'] || '';
+  const expected = process.env.SCHEDULED_FUNCTIONS_SECRET || '';
+  if (!expected || provided !== expected) throw new Error('Forbidden');
+}
+
+module.exports = { verifyUser, requireSchedulerSecret };

@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Invoice management app",
   "dependencies": {
-    "@netlify/functions": "^5.3.0",
     "@supabase/supabase-js": "^2.39.7",
     "resend": "^3.2.0"
   }
