@@ -17,7 +17,7 @@ Invoice management app for generating and sending Icelandic-compliant PDF invoic
 - **Per-invoice controls** on the invoices tab:
   - ✓ Mark as paid / Undo paid — track payment status on sent invoices, regenerates the PDF with a green "GREITT" stamp
   - ⟲ Issue credit invoice — cancel a sent invoice and unlock its entries for correction, regenerates the original's PDF with a red "ÓGILT" stamp
-- **Automatic monthly sends:**
+- **Automatic monthly sends** (triggered by `pg_cron`/`pg_net` in Supabase, not Netlify's own scheduler — see Security):
   - 22nd at 09:00 UTC — DRAFT invoice emailed to your preview address. If any client has no logged work that cycle, a single summary email lists them so you have 3 days to fix it before the 25th
   - 25th at 09:00 UTC — real invoice sent to client
 - Each draft generation creates a new immutable row with the frozen amount at that point in time
@@ -55,17 +55,21 @@ invoices/
       settings.js                   — issuer details, bank, VSK, notifications, invite user (/settings)
   netlify/
     functions/
+      _auth.js                     — shared: verifies the caller's Supabase session token and the
+                                       scheduled-function shared secret (not its own endpoint — `_` prefixed)
       generate-invoice.js           — core: PDF via PDFShift, storage, email, entry locking
       issue-credit-invoice.js       — generates a credit invoice, cancels + restamps original, unlocks entries
       restamp-invoice-pdf.js        — regenerates an existing invoice PDF with GREITT/ÓGILT stamp in place
       invite-user.js                — sends a Supabase invite email via the Admin API
-      send-staging.js               — scheduled 22nd: draft to preview_email, plus no-work summary
-      send-invoices.js              — scheduled 25th: real invoice to client
+      send-staging.js               — 22nd: draft to preview_email, plus no-work summary
+      send-invoices.js              — 25th: real invoice to client
   netlify.toml                      — SPA redirect, dev port 8889, secrets scan omit
   package.json                      — @supabase/supabase-js, resend
   supabase/
     migrations/
       002_invoices.sql              — clients, invoices, invoice_entries, storage, RLS, counter fn
+      003_scheduled_function_cron.sql      — pg_cron + pg_net jobs (test/dev project)
+      004_scheduled_function_cron_prod.sql — pg_cron + pg_net jobs (production project)
 ```
 
 ---
@@ -100,7 +104,21 @@ owns: profiles,               (shared DB)                  owns: clients, invoic
 - Draft `invoice_entries` can be deleted to allow entry deletion before invoicing
 - Cloudflare IP geoblocking on `talva.is` restricts access to Icelandic IPs
 - Public signups disabled — accounts created via the in-app invite flow (Settings → Invite user) or manually in Supabase dashboard
-- The invite function uses the service role key server-side only — the redirect URL is controlled by the `SITE_URL` environment variable, not client input
+
+### UI-facing functions (`generate-invoice`, `issue-credit-invoice`, `restamp-invoice-pdf`, `invite-user`)
+
+Every call from the frontend carries the user's Supabase session token as `Authorization: Bearer <token>` (see `authHeaders()` in `src/supabase.js`). Each function verifies that token server-side via `verifyUser()` in `_auth.js` and uses the *verified* user id for every query — a client-supplied `userId` in the request body is never trusted. Without this, these functions run with the service role key (bypasses RLS), so anyone who could reach the endpoint could otherwise act as any user. The invite function's redirect URL is controlled by the `SITE_URL` environment variable, not client input.
+
+### Scheduled functions (`send-staging`, `send-invoices`)
+
+These loop over every client for every user, so they need real protection against being triggered by anyone who finds the URL — a plain Netlify `schedule()`/`netlify.toml` cron entry only controls when Netlify's *own* scheduler calls the function automatically, it does not stop anyone else from POSTing to the same public URL at any time (confirmed directly: a plain HTTP request against production executed the function for real).
+
+Instead, both functions are plain HTTP endpoints gated by a shared secret (`SCHEDULED_FUNCTIONS_SECRET`, checked via `requireSchedulerSecret()` in `_auth.js`), and are triggered by a `pg_cron` job in each Supabase project (see `supabase/migrations/003_scheduled_function_cron.sql` / `004_scheduled_function_cron_prod.sql`) that calls the function via `pg_net`, attaching the secret as a header. This is the only non-spoofable option, since Netlify's own scheduler can't be configured to send a header we control.
+
+- The secret is stored in Supabase Vault (referenced by name only in the migration SQL, never by value) and as a Netlify environment variable marked `--secret`.
+- Test and production each have their own distinct secret — never reused across environments.
+- `net.http_post`'s `timeout_milliseconds` is set to 30s; the function itself isn't cancelled by a shorter client-side timeout, but a short timeout makes `net._http_response` unreliable for telling a real failure apart from a slow success.
+- If a secret is ever exposed (e.g. shown in a chat/terminal session), rotate it: generate a new value, `netlify env:set SCHEDULED_FUNCTIONS_SECRET <value> --context <production|branch-deploy> --secret --force`, then `select vault.update_secret((select id from vault.secrets where name = 'scheduled_functions_secret'), '<value>');` in the matching Supabase project, then trigger a redeploy (env var changes don't apply to already-running functions until one happens).
 
 ---
 
@@ -170,29 +188,51 @@ const TEST_HOST = 'test--enchanting-sfogliatella-b979c6.netlify.app';
 Set these in the Netlify dashboard per deploy context (test/prod):
 
 ```
-SUPABASE_URL           — Supabase project URL
-SUPABASE_SERVICE_KEY   — service role key (secret, server-side only)
-RESEND_API_KEY         — Resend API key
-INVOICE_FROM_EMAIL     — e.g. invoices@talva.is
-PDFSHIFT_API_KEY       — PDFShift API key (pdfshift.io)
-SITE_URL               — this app's own URL, used as the invite redirect target
+SUPABASE_URL                 — Supabase project URL
+SUPABASE_SERVICE_KEY         — service role key (secret, server-side only)
+RESEND_API_KEY               — Resend API key
+INVOICE_FROM_EMAIL           — e.g. invoices@talva.is
+PDFSHIFT_API_KEY             — PDFShift API key (pdfshift.io)
+SITE_URL                     — this app's own URL, used as the invite redirect target
+SCHEDULED_FUNCTIONS_SECRET   — random secret (e.g. `openssl rand -hex 32`), mark as **Secret** —
+                                shared with pg_cron via Supabase Vault, see step 8 below
 ```
 
 Also create a local `.env` file (gitignored) in the invoices folder for local function testing.
 
-### 4. Verify sending domain in Resend
+### 4. Set up scheduled-function triggering (`pg_cron` + `pg_net`)
+
+`send-staging`/`send-invoices` are triggered by Supabase, not Netlify's scheduler (see Security). Run once per Supabase project (test and production each need their own distinct secret):
+
+```sql
+-- Store the same value you set as SCHEDULED_FUNCTIONS_SECRET in Netlify for this project's context
+select vault.create_secret(
+  '<the random secret value>',
+  'scheduled_functions_secret',
+  'Shared secret so pg_cron can call the Netlify send-staging/send-invoices functions'
+);
+```
+
+Then run the matching migration (`003_scheduled_function_cron.sql` for test/dev, `004_scheduled_function_cron_prod.sql` for production) in that project's SQL Editor — it enables `pg_cron`/`pg_net` and creates the two `cron.schedule()` jobs, referencing the secret by name only.
+
+Verify:
+```sql
+select jobid, jobname, schedule, active from cron.job order by jobname;
+```
+
+### 5. Verify sending domain in Resend
 
 resend.com → Domains → Add → `talva.is`. Add DKIM and SPF DNS records.
 
-### 5. Fill in issuer details
+### 6. Fill in issuer details
 
 Log in → Settings → fill in your name, kennitala, address, email, bank details, and VSK rate (0 if not registered). The dashboard warns you until these are complete.
 
-### 6. Invite additional users
+### 7. Invite additional users
 
 Settings → Invite user → enter their email → Send invite. They receive a Supabase invite email; clicking it currently signs them straight in via the Logger app (the companion redirect). They can set or change their password any time via Forgot password on the login screen.
 
-### 7. Local development
+### 8. Local development
 
 ```powershell
 npm install
@@ -201,11 +241,12 @@ netlify dev
 
 Opens on `http://localhost:8889`. Use the deployed test logger site pointing at the same dev Supabase project when running invoices locally to avoid Netlify Dev port conflicts.
 
-Test scheduled functions via CLI:
-```powershell
-netlify functions:invoke send-staging --port 8889
-netlify functions:invoke send-invoices --port 8889
+Test scheduled functions locally (requires the shared secret — see Setup step 8 — as a header, since they're plain HTTP endpoints, not Netlify `schedule()` functions):
+```bash
+curl -H "x-scheduled-secret: $SCHEDULED_FUNCTIONS_SECRET" http://localhost:8889/.netlify/functions/send-staging
+curl -H "x-scheduled-secret: $SCHEDULED_FUNCTIONS_SECRET" http://localhost:8889/.netlify/functions/send-invoices
 ```
+Without the header, both correctly return `403 {"error":"Forbidden"}`.
 
 ---
 
