@@ -9,11 +9,12 @@ const { generateInvoice } = require('./generate-invoice');
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
+/**
 // Netlify scheduled function config
 module.exports.config = {
-  schedule: '0 11 25 * *',
+  schedule: '0 9 25 * *',
 };
-
+*/
 exports.handler = async () => {
   console.log('[send-invoices] Starting');
 
