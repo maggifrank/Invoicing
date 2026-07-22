@@ -1,6 +1,6 @@
 // src/pages/invoices.js
 
-import { sb } from '../supabase.js';
+import { sb, authHeaders } from '../supabase.js';
 import { currentUser } from '../auth.js';
 import { showToast } from '../components/toast.js';
 import { escHtml } from '../utils.js';
@@ -178,8 +178,8 @@ async function restamp(invoiceId) {
   try {
     await fetch('/.netlify/functions/restamp-invoice-pdf', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoiceId, userId: currentUser.id }),
+      headers: await authHeaders(),
+      body: JSON.stringify({ invoiceId }),
     });
   } catch (err) {
     console.error('Restamp failed', err);

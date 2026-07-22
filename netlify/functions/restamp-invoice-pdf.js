@@ -23,17 +23,25 @@
 
 const { createClient }              = require('@supabase/supabase-js');
 const { htmlToPDF, buildInvoiceHTML } = require('./generate-invoice');
+const { verifyUser }                 = require('./_auth');
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
-  const { invoiceId, userId } = safeJSON(event.body);
-  if (!invoiceId || !userId) return respond(400, { error: 'invoiceId and userId required' });
+  let user;
+  try {
+    user = await verifyUser(sb, event);
+  } catch {
+    return respond(401, { error: 'Unauthorized' });
+  }
+
+  const { invoiceId } = safeJSON(event.body);
+  if (!invoiceId) return respond(400, { error: 'invoiceId required' });
 
   try {
-    const result = await restampInvoicePDF({ invoiceId, userId });
+    const result = await restampInvoicePDF({ invoiceId, userId: user.id });
     return respond(200, result);
   } catch (err) {
     console.error('[restamp-invoice-pdf]', err);

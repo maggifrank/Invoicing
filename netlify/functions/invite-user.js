@@ -10,6 +10,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { verifyUser }   = require('./_auth');
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -17,6 +18,12 @@ const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_K
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
+
+  try {
+    await verifyUser(sb, event);
+  } catch {
+    return respond(401, { error: 'Unauthorized' });
+  }
 
   const { email } = JSON.parse(event.body ?? '{}');
   if (!email) return respond(400, { error: 'Email is required' });

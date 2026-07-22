@@ -33,3 +33,13 @@ const config               = ENV_CONFIG[ENV];
 export const COMPANION_URL = config.companionUrl;
 
 export const sb = createClient(config.url, config.anonKey);
+
+// Headers for calls to our Netlify functions — carries the session token
+// so the function can verify who's calling instead of trusting the body.
+export async function authHeaders() {
+  const { data: { session } } = await sb.auth.getSession();
+  return {
+    'Content-Type': 'application/json',
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
+}
