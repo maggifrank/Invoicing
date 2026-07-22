@@ -1,20 +1,27 @@
 /**
  * send-staging.js
- * Scheduled: 09:00 UTC on the 22nd of every month
+ * Triggered monthly by a pg_cron job (see supabase/migrations), which
+ * attaches a shared secret checked by requireSchedulerSecret below.
  * Sends DRAFT invoices to each user's preview_email for review.
  * Also sends a single summary email per user listing clients with
  * no logged work this cycle.
  */
 
-const { createClient }    = require('@supabase/supabase-js');
-const { Resend }          = require('resend');
-const { schedule }        = require('@netlify/functions');
-const { generateInvoice } = require('./generate-invoice');
+const { createClient }        = require('@supabase/supabase-js');
+const { Resend }              = require('resend');
+const { generateInvoice }     = require('./generate-invoice');
+const { requireSchedulerSecret } = require('./_auth');
 
 const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-exports.handler = schedule('0 9 22 * *', async () => {
+exports.handler = async (event) => {
+  try {
+    requireSchedulerSecret(event);
+  } catch {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+  }
+
   console.log('[send-staging] Starting');
 
   const { data: clients, error } = await sb
@@ -82,7 +89,7 @@ exports.handler = schedule('0 9 22 * *', async () => {
   const summary = { sent, skipped, failed };
   console.log('[send-staging] Done', summary);
   return { statusCode: 200, body: JSON.stringify(summary) };
-});
+};
 
 async function sendNoWorkSummary(toEmail, clientNames) {
   const lines = clientNames

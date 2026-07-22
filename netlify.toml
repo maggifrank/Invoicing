@@ -18,6 +18,8 @@
   directory    = "netlify/functions"
   node_bundler = "esbuild"
 
-# send-staging and send-invoices declare their own schedule in code via
-# @netlify/functions' schedule() wrapper, which also makes them
-# unreachable via direct HTTP request (see ntl.fyi/sched-func).
+# send-staging and send-invoices are plain HTTP functions triggered by a
+# pg_cron job in Supabase (see supabase/migrations), not by Netlify's own
+# scheduler — that was found to still accept direct HTTP requests even
+# when declared as a scheduled function. Each request must carry a shared
+# secret (SCHEDULED_FUNCTIONS_SECRET) that only the cron job knows.

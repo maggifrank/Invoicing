@@ -1,16 +1,23 @@
 /**
  * send-invoices.js
- * Scheduled: 09:00 UTC on the 25th of every month
+ * Triggered monthly by a pg_cron job (see supabase/migrations), which
+ * attaches a shared secret checked by requireSchedulerSecret below.
  * Sends real invoices to clients and marks entries as invoiced.
  */
 
-const { createClient }    = require('@supabase/supabase-js');
-const { schedule }        = require('@netlify/functions');
-const { generateInvoice } = require('./generate-invoice');
+const { createClient }        = require('@supabase/supabase-js');
+const { generateInvoice }     = require('./generate-invoice');
+const { requireSchedulerSecret } = require('./_auth');
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-exports.handler = schedule('0 9 25 * *', async () => {
+exports.handler = async (event) => {
+  try {
+    requireSchedulerSecret(event);
+  } catch {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+  }
+
   console.log('[send-invoices] Starting');
 
   const { data: clients, error } = await sb
@@ -51,4 +58,4 @@ exports.handler = schedule('0 9 25 * *', async () => {
   const summary = { sent, skipped, failed };
   console.log('[send-invoices] Done', summary);
   return { statusCode: 200, body: JSON.stringify(summary) };
-});
+};
