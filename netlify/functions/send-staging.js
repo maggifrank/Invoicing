@@ -8,12 +8,13 @@
 
 const { createClient }    = require('@supabase/supabase-js');
 const { Resend }          = require('resend');
+const { schedule }        = require('@netlify/functions');
 const { generateInvoice } = require('./generate-invoice');
 
 const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-exports.handler = async () => {
+exports.handler = schedule('0 9 22 * *', async () => {
   console.log('[send-staging] Starting');
 
   const { data: clients, error } = await sb
@@ -81,7 +82,7 @@ exports.handler = async () => {
   const summary = { sent, skipped, failed };
   console.log('[send-staging] Done', summary);
   return { statusCode: 200, body: JSON.stringify(summary) };
-};
+});
 
 async function sendNoWorkSummary(toEmail, clientNames) {
   const lines = clientNames

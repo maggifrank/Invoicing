@@ -5,11 +5,12 @@
  */
 
 const { createClient }    = require('@supabase/supabase-js');
+const { schedule }        = require('@netlify/functions');
 const { generateInvoice } = require('./generate-invoice');
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-exports.handler = async () => {
+exports.handler = schedule('0 9 25 * *', async () => {
   console.log('[send-invoices] Starting');
 
   const { data: clients, error } = await sb
@@ -50,4 +51,4 @@ exports.handler = async () => {
   const summary = { sent, skipped, failed };
   console.log('[send-invoices] Done', summary);
   return { statusCode: 200, body: JSON.stringify(summary) };
-};
+});

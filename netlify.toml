@@ -18,8 +18,6 @@
   directory    = "netlify/functions"
   node_bundler = "esbuild"
 
-[functions."send-staging"]
-  schedule = "0 09 22 * *"
-
-[functions."send-invoices"]
-  schedule = "0 09 25 * *"
+# send-staging and send-invoices declare their own schedule in code via
+# @netlify/functions' schedule() wrapper, which also makes them
+# unreachable via direct HTTP request (see ntl.fyi/sched-func).
