@@ -1,6 +1,6 @@
 // src/main.js
 
-import { sb, ENV, COMPANION_URL } from './supabase.js';
+import { sb, ENV, COMPANION_URL, authHeaders } from './supabase.js';
 import { initAuth, signOut, mountAuthUI, currentUser } from './auth.js';
 import { register, start, navigate } from './router.js';
 import { showToast } from './components/toast.js';
@@ -82,7 +82,7 @@ window.sendInvite = async () => {
   try {
     const res  = await fetch('/.netlify/functions/invite-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ email }),
     });
     const json = await res.json();
@@ -110,8 +110,8 @@ window.issueCreditInvoice = async (invoiceId, invoiceNumber) => {
   try {
     const res  = await fetch('/.netlify/functions/issue-credit-invoice', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoiceId, userId: currentUser.id, unlockEntries: true }),
+      headers: await authHeaders(),
+      body: JSON.stringify({ invoiceId, unlockEntries: true }),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'Unknown error');
@@ -131,10 +131,9 @@ window.previewInvoice = async (clientId, sendDraft) => {
   try {
     const res  = await fetch('/.netlify/functions/generate-invoice', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({
         clientId,
-        userId:    currentUser.id,
         isDraft:   true,
         sendEmail: sendDraft,
       }),
@@ -167,10 +166,9 @@ window.sendRealInvoice = async (clientId) => {
   try {
     const res  = await fetch('/.netlify/functions/generate-invoice', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({
         clientId,
-        userId:    currentUser.id,
         isDraft:   false,
         sendEmail: true,
       }),

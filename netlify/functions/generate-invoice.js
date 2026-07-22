@@ -18,6 +18,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend }       = require('resend');
+const { verifyUser }   = require('./_auth');
 
 const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -26,13 +27,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
-  const body = safeJSON(event.body);
-  const { clientId, userId, isDraft = false, sendEmail = false, cycleOverride, isScheduled = false } = body;
+  let user;
+  try {
+    user = await verifyUser(sb, event);
+  } catch {
+    return respond(401, { error: 'Unauthorized' });
+  }
 
-  if (!clientId || !userId) return respond(400, { error: 'clientId and userId required' });
+  const body = safeJSON(event.body);
+  const { clientId, isDraft = false, sendEmail = false, cycleOverride, isScheduled = false } = body;
+
+  if (!clientId) return respond(400, { error: 'clientId required' });
 
   try {
-    const result = await generateInvoice({ clientId, userId, isDraft, sendEmail, cycleOverride, isScheduled });
+    const result = await generateInvoice({ clientId, userId: user.id, isDraft, sendEmail, cycleOverride, isScheduled });
     return respond(200, result);
   } catch (err) {
     console.error('[generate-invoice]', err);
@@ -520,18 +528,18 @@ function getCurrentCycleDates(cycleStartDay = 21, isScheduled = false) {
   const m   = now.getMonth();
 
   // Determine which cycle we're currently in
-let cycleStartDate, cycleEndDate;
-if (isScheduled) {
-  // Scheduled runs (22nd, 25th) always report on the cycle that just closed
-  cycleStartDate = new Date(y, m - 1, cycleStartDay);
-  cycleEndDate   = new Date(y, m, cycleStartDay - 1);
-} else if (day >= cycleStartDay) {
-  cycleStartDate = new Date(y, m, cycleStartDay);
-  cycleEndDate   = new Date(y, m + 1, cycleStartDay - 1);
-} else {
-  cycleStartDate = new Date(y, m - 1, cycleStartDay);
-  cycleEndDate   = new Date(y, m, cycleStartDay - 1);
-}
+  let cycleStartDate, cycleEndDate;
+  if (isScheduled) {
+    // Scheduled runs (22nd, 25th) always report on the cycle that just closed
+    cycleStartDate = new Date(y, m - 1, cycleStartDay);
+    cycleEndDate   = new Date(y, m, cycleStartDay - 1);
+  } else if (day >= cycleStartDay) {
+    cycleStartDate = new Date(y, m, cycleStartDay);
+    cycleEndDate   = new Date(y, m + 1, cycleStartDay - 1);
+  } else {
+    cycleStartDate = new Date(y, m - 1, cycleStartDay);
+    cycleEndDate   = new Date(y, m, cycleStartDay - 1);
+  }
 
   let issuedDate, dueDate, finalDate;
   if (isScheduled) {

@@ -27,6 +27,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend }       = require('resend');
+const { verifyUser }   = require('./_auth');
 
 const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -41,11 +42,18 @@ async function restampOriginalPDF(invoiceId, userId) {
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
-  const { invoiceId, userId, unlockEntries = true } = safeJSON(event.body);
-  if (!invoiceId || !userId) return respond(400, { error: 'invoiceId and userId required' });
+  let user;
+  try {
+    user = await verifyUser(sb, event);
+  } catch {
+    return respond(401, { error: 'Unauthorized' });
+  }
+
+  const { invoiceId, unlockEntries = true } = safeJSON(event.body);
+  if (!invoiceId) return respond(400, { error: 'invoiceId required' });
 
   try {
-    const result = await issueCreditInvoice({ invoiceId, userId, unlockEntries });
+    const result = await issueCreditInvoice({ invoiceId, userId: user.id, unlockEntries });
     return respond(200, result);
   } catch (err) {
     console.error('[issue-credit-invoice]', err);
