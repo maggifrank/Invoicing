@@ -10,6 +10,11 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
+-- timeout_milliseconds is generous (30s) because these functions loop over
+-- every client sequentially (PDF generation + email per client) — pg_net's
+-- default timeout is short enough that a real run can exceed it even
+-- though the Netlify function itself isn't cancelled by that timeout, it
+-- just means net._http_response can't be trusted to reflect success/failure.
 select cron.schedule(
   'send-staging-monthly',
   '0 9 22 * *',
@@ -20,7 +25,8 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'x-scheduled-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'scheduled_functions_secret')
     ),
-    body    := '{}'::jsonb
+    body    := '{}'::jsonb,
+    timeout_milliseconds := 30000
   ) as request_id;
   $$
 );
@@ -35,7 +41,8 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'x-scheduled-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'scheduled_functions_secret')
     ),
-    body    := '{}'::jsonb
+    body    := '{}'::jsonb,
+    timeout_milliseconds := 30000
   ) as request_id;
   $$
 );
