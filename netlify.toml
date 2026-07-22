@@ -19,7 +19,7 @@
   node_bundler = "esbuild"
 
 [functions."send-staging"]
-  schedule = "02 16 22 * *"
+  schedule = "0 09 22 * *"
 
 [functions."send-invoices"]
   schedule = "0 09 25 * *"

@@ -13,12 +13,6 @@ const { generateInvoice } = require('./generate-invoice');
 const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-/**
-module.exports.config = {
-  schedule: '0 11 22 * *',
-};
-*/
-
 exports.handler = async () => {
   console.log('[send-staging] Starting');
 

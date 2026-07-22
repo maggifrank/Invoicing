@@ -520,18 +520,18 @@ function getCurrentCycleDates(cycleStartDay = 21, isScheduled = false) {
   const m   = now.getMonth();
 
   // Determine which cycle we're currently in
-let cycleStartDate, cycleEndDate;
-if (isScheduled) {
-  // Scheduled runs (22nd, 25th) always report on the cycle that just closed
-  cycleStartDate = new Date(y, m - 1, cycleStartDay);
-  cycleEndDate   = new Date(y, m, cycleStartDay - 1);
-} else if (day >= cycleStartDay) {
-  cycleStartDate = new Date(y, m, cycleStartDay);
-  cycleEndDate   = new Date(y, m + 1, cycleStartDay - 1);
-} else {
-  cycleStartDate = new Date(y, m - 1, cycleStartDay);
-  cycleEndDate   = new Date(y, m, cycleStartDay - 1);
-}
+  let cycleStartDate, cycleEndDate;
+  if (isScheduled) {
+    // Scheduled runs (22nd, 25th) always report on the cycle that just closed
+    cycleStartDate = new Date(y, m - 1, cycleStartDay);
+    cycleEndDate   = new Date(y, m, cycleStartDay - 1);
+  } else if (day >= cycleStartDay) {
+    cycleStartDate = new Date(y, m, cycleStartDay);
+    cycleEndDate   = new Date(y, m + 1, cycleStartDay - 1);
+  } else {
+    cycleStartDate = new Date(y, m - 1, cycleStartDay);
+    cycleEndDate   = new Date(y, m, cycleStartDay - 1);
+  }
 
   let issuedDate, dueDate, finalDate;
   if (isScheduled) {
