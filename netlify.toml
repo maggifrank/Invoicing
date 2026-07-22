@@ -17,3 +17,11 @@
 [functions]
   directory    = "netlify/functions"
   node_bundler = "esbuild"
+
+[[scheduled_functions]]
+  name     = "send-staging"
+  schedule = "0 11 22 * *"
+
+[[scheduled_functions]]
+  name     = "send-invoices"
+  schedule = "0 9 25 * *"

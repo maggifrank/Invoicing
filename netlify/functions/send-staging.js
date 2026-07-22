@@ -14,7 +14,7 @@ const sb     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVI
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 module.exports.config = {
-  schedule: '0 9 22 * *',
+  schedule: '0 11 22 * *',
 };
 
 exports.handler = async () => {
