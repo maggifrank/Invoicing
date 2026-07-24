@@ -6,6 +6,14 @@
 -- Prerequisite (run once, not part of this migration, against the
 -- production project specifically):
 --   select vault.create_secret('<prod value>', 'scheduled_functions_secret', '...');
+--
+-- URL uses Netlify's raw subdomain (main--enchanting-sfogliatella-b979c6),
+-- not invoicing.talva.is: talva.is sits behind Cloudflare with IP
+-- geoblocking restricted to Iceland (see README Security section), and a
+-- manual net.http_post test against the talva.is URL got a 404 while the
+-- identical request against the raw Netlify subdomain succeeded — pg_net's
+-- requests originate from Supabase's own infrastructure, not Iceland. Same
+-- site, same functions, just bypassing the custom domain's Cloudflare layer.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
@@ -20,7 +28,7 @@ select cron.schedule(
   '0 9 22 * *',
   $$
   select net.http_post(
-    url     := 'https://invoicing.talva.is/.netlify/functions/send-staging',
+    url     := 'https://main--enchanting-sfogliatella-b979c6.netlify.app/.netlify/functions/send-staging',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-scheduled-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'scheduled_functions_secret')
@@ -36,7 +44,7 @@ select cron.schedule(
   '0 9 25 * *',
   $$
   select net.http_post(
-    url     := 'https://invoicing.talva.is/.netlify/functions/send-invoices',
+    url     := 'https://main--enchanting-sfogliatella-b979c6.netlify.app/.netlify/functions/send-invoices',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-scheduled-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'scheduled_functions_secret')
